@@ -1,0 +1,4 @@
+.gdb_history
+/testcase/*
+/build*
+.vscode
