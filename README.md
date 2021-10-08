@@ -16,5 +16,10 @@ This project is for taint analysis based on llvm DataFlowSanitizer, and used for
   - Some libc IO wrapper.
   - Clang wrapper for compiling with DFSan directly.
   - Another TaintPass for hooking some special instructions.
+## Usage 
+  - abilist
+  - DFSan Flag
+    - ```export DFSAN_OPTIONS=dump_labels_at_exit=dump.txt```
+      - This flag will dump label list in fini stage. 
 ## TODO
   - Modify DFSan runtime library to support tracing input offset.

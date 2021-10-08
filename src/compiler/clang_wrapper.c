@@ -420,8 +420,15 @@ int main(int argc, char** argv) {
 
   print_cmdline(argc);
 
+   /**
+   * Set environment variable DFSAN_OPTIONS for DFSan debugging.
+   * dump_labels_at_exit selects the path for dumping label info.
+   */
+  setenv("DFSAN_OPTIONS", "dump_labels_at_exit=dump.txt", 1);
+  
   execvp(cc_params[0], (char**)cc_params);
 
+ 
   FATAL("Oops, failed to execute '%s' - check your PATH", cc_params[0]);
 
   return 0;

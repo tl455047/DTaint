@@ -3,8 +3,8 @@
  * shared memory setup.
  */
 
-#include "../dfsan_rt/include/sanitizer/dfsan_interface.h"
-#include <stdio.h>
+//#include "../dfsan_rt/include/sanitizer/dfsan_interface.h"
+/*#include <stdio.h>
 #include "../include/types.h"
 u8 *taint_map;
 
@@ -19,6 +19,6 @@ void __taint_load_callback(dfsan_label Label) {
 void __taint_mem_transfer_callback(dfsan_label *Start, size_t Len) {
     
     fprintf(stderr, "Label %u copied to memory\n", Start[0]);
-}
+}*/
 
 

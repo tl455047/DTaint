@@ -62,6 +62,20 @@
         "config.h": "c",
         "signal.h": "c",
         "android-ashmem.h": "c",
-        "sanitizer_internal_defs.h": "c"
+        "sanitizer_internal_defs.h": "c",
+        "csignal": "cpp",
+        "strstream": "cpp",
+        "complex": "cpp",
+        "unordered_set": "cpp",
+        "hash_map": "cpp",
+        "hash_set": "cpp",
+        "iomanip": "cpp",
+        "cfenv": "cpp",
+        "typeindex": "cpp",
+        "variant": "cpp",
+        "stdio.h": "c",
+        "common_interface_defs.h": "c",
+        "*.def": "cpp",
+        "stddef.h": "c"
     }
 }

@@ -99,8 +99,8 @@ bool TaintPass::runOnModule(Module &M) {
     StoreFuncCallback = M.getOrInserFunction("__taint_store_callback", StoreFuncCallbackTy);
     MemTransferCallback = M.getOrInsertFunction("__taint_mem_transfer_callback", MemTransferCallbackTy);*/
     for (Function &i : M) {
-        if(i.isIntrinsic())
-            errs() << i.getName() << "\n";
+        //if(i.isIntrinsic())
+            //errs() << i.getName() << "\n";
         if(!i.isIntrinsic() && &i != DebugFunc.getCallee()->stripPointerCasts() ) {
             //errs() << i.getName()<<"\n";
             visit(i);

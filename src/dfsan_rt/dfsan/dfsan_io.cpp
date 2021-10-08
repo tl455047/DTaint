@@ -3,7 +3,7 @@
 #include "../dfsan_rt/sanitizer_common/sanitizer_linux.h"
 
 #include "../dfsan_rt/dfsan/dfsan.h"
-
+//#include "../dfsan_rt/include/sanitizer/dfsan_interface.h"
 #include <stdio.h>
 #include <string.h>
 #include <sys/types.h>
@@ -27,8 +27,13 @@ size_t __dfsw_fread(void *ptr, size_t size, size_t count, FILE *stream,
             dfsan_label count_label, dfsan_label stream_label,
             dfsan_label *ret_label) {
     size_t len = fread(ptr, size, count, stream);
-    if(len > 0) 
-        dfsan_set_label(TAINT_INPUT_LABEL, ptr, len * size);    
+    dfsan_label label; 
+    if(len > 0) {
+        for(int i = 0; i < len; i++) {
+            label = dfsan_create_label(i);
+            dfsan_set_label(label, (char* )ptr + i, 1);
+        }    
+    }
     *ret_label = 0;
     return len;
 }

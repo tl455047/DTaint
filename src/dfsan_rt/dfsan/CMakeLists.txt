@@ -5,8 +5,9 @@ set(DFSAN_RTL_SOURCES
   dfsan.cpp
   dfsan_custom.cpp
   dfsan_interceptors.cpp
-  event_callback.c
   dfsan_io.cpp
+  event_callback.cpp
+  ../runtime/dfsan_union_t.cpp
   )
 
 set(DFSAN_RTL_HEADERS

@@ -299,7 +299,7 @@ class DataFlowSanitizer : public ModulePass {
   friend struct DFSanFunction;
   friend class DFSanVisitor;
 
-  enum { ShadowWidthBits = 16, ShadowWidthBytes = ShadowWidthBits / 8 };
+  enum { ShadowWidthBits = 32, ShadowWidthBytes = ShadowWidthBits / 8 };
 
   /// Which ABI should be used for instrumented functions?
   enum InstrumentedABI {

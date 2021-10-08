@@ -19,7 +19,9 @@ namespace __dfsan {
 #if defined(__x86_64__)
 struct Mapping {
   static const uptr kShadowAddr = 0x10000;
-  static const uptr kUnionTableAddr = 0x200000000000;
+  //static const uptr kUnionTableAddr = 0x200000000000;
+  // For 4 byte mapping actual size should be 0x3ffffffe0000.
+  static const uptr kUnionTableAddr = 0x400000000000;
   static const uptr kAppAddr = 0x700000008000;
   static const uptr kShadowMask = ~0x700000000000;
 };
