@@ -229,8 +229,7 @@ dfsan_label __dfsan_union(dfsan_label l1, dfsan_label l2) {
    * searching time to O(logn).
    */
   
-  label = dfsan_union_t_union(__dfsan_label_info.union_t, 
-  &(__dfsan_label_info.last_label), l1, l2);
+  label = dfsan_union_t_union(&__dfsan_label_info, l1, l2);
   
   return label;
 }
@@ -294,10 +293,10 @@ extern "C" SANITIZER_INTERFACE_ATTRIBUTE
 dfsan_label dfsan_create_label(u32 pos) {
   __dfsan_label_info.input_label += 1;
   __dfsan_label_info.last_label += 1;
-  dfsan_label label = __dfsan_label_info.last_label;
-  dfsan_check_label(label);
+  dfsan_label label = __dfsan_label_info.input_label;
+  dfsan_check_label(__dfsan_label_info.last_label);
 
-  dfsan_union_t_insert(__dfsan_label_info.union_t, label, pos);
+  dfsan_union_t_insert(&__dfsan_label_info, pos);
 
   return label;
 }
@@ -405,13 +404,14 @@ dfsan_dump_labels(int fd) {
 void dfsan_union_t_init() {
   __dfsan_label_info.last_label = 0;
   __dfsan_label_info.input_label = 0;
+  __dfsan_label_info.union_label = DFSAN_UNION_T_SIZE;
   fprintf(stderr, "dfsan_uniont_t_init\n");
 }
 
 extern "C" SANITIZER_INTERFACE_ATTRIBUTE void
 dfsan_dump_labels(int fd) {
 
-  dfsan_union_t_dump(__dfsan_label_info.union_t, __dfsan_label_info.last_label, __dfsan_label_info.input_label, fd);
+  dfsan_union_t_dump(&__dfsan_label_info, fd);
 }
 
 void Flags::SetDefaults() {

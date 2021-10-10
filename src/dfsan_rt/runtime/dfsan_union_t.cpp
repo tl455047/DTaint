@@ -60,7 +60,28 @@ struct  __attribute__((__packed__)) tainted {
   struct tainted* next;
 };
 
-struct tainted* union_t_create_node(dfsan_label label, u32 len) {
+struct __attribute__((__packed__)) offset_node {
+  u32 num;
+  u32 len;
+  dfsan_label label;
+  struct tainted *tainted;
+  struct offset_node* next;
+};
+
+/**
+ * Offset list store offsets in different element according to 
+ * total tainted bytes, this can reduce the search time when finding the
+ * offset is existed in union_t or not.
+ * The index represents power of 2. [1, 2, 4, 8, 16, 32, 64 ...] 
+ * offset_list[1] -> 2^1 = 2 -> store total tainted bytes in [2]
+ * offset_list[2] -> 2^2 = 4 -> store total tainted bytes in [3, 4]
+ * offset_list[3] -> 2^3 = 8 -> store total tainted bytes in [5, 6, 7, 8]
+ * ...
+ */
+struct offset_node* __union_t_offset_list[DFSAN_UNION_T_OFFSET_LIST_SIZE + 1];
+
+
+struct tainted* union_t_create_tainted_node(dfsan_label label, u32 len) {
   // creat tainted node
   struct tainted* tainted_node = (struct tainted* )malloc(sizeof(struct tainted));
   
@@ -76,35 +97,55 @@ struct tainted* union_t_create_node(dfsan_label label, u32 len) {
   return tainted_node; 
 }
 
-void union_t_output_tainted(struct tainted* t, int fd) {
-  struct tainted* node = t;
+struct offset_node* union_t_create_offset_node(struct tainted *t, u32 num, u32 len) {
+  
+  struct offset_node* node = (struct offset_node* )malloc(sizeof(struct offset_node));
+  
+  if(node != NULL) {
+    node->tainted = t;
+    node->num = num;
+    node->len = len;
+    node->label = 0;
+    node->next = NULL;
+  }
+  else {
+    Report("FATAL: DataFlowSanitizer: malloc failed\n");
+    Die();
+  }
+  return node;   
+}
+
+
+void union_t_output_tainted(struct offset_node* node, int fd) {
+  struct tainted* t = node->tainted;
   char buf[256];
-  u32 total_count = 0, num_of_node = 0;
-  while(node != NULL) {
-    num_of_node += 1;
-    total_count += node->len;
-    internal_snprintf(buf, sizeof(buf), "pos: %u, len: %u ", node->pos, node->len);
+  while(t != NULL) {
+    internal_snprintf(buf, sizeof(buf), "pos: %u, len: %u ", t->pos, t->len);
     WriteToFile(fd, buf, internal_strlen(buf));
     //fprintf(stderr, "pos: %u, len: %u ", node->pos, node->len);
-    node = node->next;
-  }
-  internal_snprintf(buf, sizeof(buf), "total tainted bytes: %u, total continuous regions: %u\n", total_count, num_of_node);
+    t = t->next;
+  }WriteToFile(fd, "\n", 1);
+  internal_snprintf(buf, sizeof(buf), "total tainted bytes: %u, total continuous regions: %u\n", node->len, node->num);
   WriteToFile(fd, buf, internal_strlen(buf));//fprintf(stderr, "\n");
 }
 
-static struct tainted* union_t_offset_union(struct tainted* t1, struct tainted* t2) {
+static struct offset_node* union_t_offset_union(struct tainted* t1, struct tainted* t2) {
   // union two tainted list
   struct tainted *tail, *new_tainted, *tainted;
   
-  new_tainted = union_t_create_node(0, 1); 
+  new_tainted = union_t_create_tainted_node(0, 1); 
   tail = new_tainted;
 
+  //union_t_output_tainted(t1, 2);
+  //union_t_output_tainted(t2, 2);
+  
+  // combine two list
   while(1) {
     
     if(t1 == NULL) {
       
       while(t2 != NULL) {
-        tail->next = union_t_create_node(t2->pos, t2->len);
+        tail->next = union_t_create_tainted_node(t2->pos, t2->len);
         t2 = t2->next;
         tail = tail->next; 
       } 
@@ -113,7 +154,7 @@ static struct tainted* union_t_offset_union(struct tainted* t1, struct tainted* 
     else if(t2 == NULL) {
       
       while(t1 != NULL) {
-        tail->next = union_t_create_node(t1->pos, t1->len);
+        tail->next = union_t_create_tainted_node(t1->pos, t1->len);
         t1 = t1->next;
         tail = tail->next; 
       } 
@@ -121,11 +162,11 @@ static struct tainted* union_t_offset_union(struct tainted* t1, struct tainted* 
     }
 
     if(t1->pos < t2->pos) { 
-      tail-> next = union_t_create_node(t1->pos, t1->len);
+      tail-> next = union_t_create_tainted_node(t1->pos, t1->len);
       t1 = t1->next;
     }
     else {
-      tail-> next = union_t_create_node(t2->pos, t2->len);
+      tail-> next = union_t_create_tainted_node(t2->pos, t2->len);
       t2 = t2->next;
      
     }
@@ -136,21 +177,20 @@ static struct tainted* union_t_offset_union(struct tainted* t1, struct tainted* 
 
   tail = new_tainted;
   new_tainted = new_tainted->next;
-
   free(tail);
-
+  
   tainted = new_tainted;
   tail = tainted->next;
   // handle overlapped
 
-  s32 overlapped, taint_end, tail_end;
+  s32 overlapped, taint_end, tail_end, total_len = 0, num_of_node = 1;
   while(1) {
     
     if(tail == NULL)
       break;
 
-    taint_end = tainted->pos + tainted->len - 1;
     tail_end = tail->pos + tail->len - 1;
+    taint_end = tainted->pos + tainted->len - 1;
     overlapped = (tail->pos - taint_end) * (tail_end - tainted->pos);
 
     if(overlapped < 0) {
@@ -173,12 +213,23 @@ static struct tainted* union_t_offset_union(struct tainted* t1, struct tainted* 
       tail = tainted->next;
     }
     else {
+      total_len += tainted->len;
+      num_of_node += 1;
       tainted = tail;
       tail = tail->next;
     }
   }
   
-  return new_tainted;
+  /**
+   * First node is not real node, it is 
+   * used to store total len, and for more
+   * efficient search.
+   */
+  total_len += tainted->len;
+  
+  struct offset_node * node = union_t_create_offset_node(new_tainted, num_of_node, total_len);
+  union_t_output_tainted(node, 2);
+  return node;
 }
 
 int union_t_check_label(dfsan_label label) {
@@ -204,46 +255,140 @@ int union_t_offset_is_equal(struct tainted *t1, struct tainted *t2) {
   return 1;
 }
 
-int union_t_offset_is_exist(void** union_t, struct tainted* t, dfsan_label last_label, dfsan_label *new_label) {
-  // Linear search is bad.
-  u32 size = last_label <= DFSAN_UNION_T_SIZE ? last_label : DFSAN_UNION_T_SIZE;
-  for(u32 i = 1; i < size; i++) {
-    if(union_t_offset_is_equal(t, (struct tainted *)union_t[i])) {
-      *new_label = i;
-      return 1;
-    }
+void union_t_offset_list_insert(struct offset_node *node, dfsan_label label) {
+  u32 offset_idx, size = node->len;
+  //get nearest offset size from len.
+  for(offset_idx = 0; size >>=1; offset_idx++);
+  
+  if(offset_idx < DFSAN_UNION_T_OFFSET_LIST_SIZE + 1) {
+    node->label = label;
+    node->next = __union_t_offset_list[offset_idx];
+    __union_t_offset_list[offset_idx] = node;
+    
   }
+  else {
+    Report("FATAL: DataFlowSanitizer: offset list out of bound\n");
+    Die(); 
+  }
+  //fprintf(stderr, "len: %u, size: %u\n", t->len, offset_idx);
 
+}
+
+int union_t_offset_list_search(struct offset_node* new_node, u32 *new_label) {
+  struct offset_node *node;
+  u32 offset_idx, size = node->len;
+  //get nearest offset size from len.
+  for(offset_idx = 0; size >>=1; offset_idx++);
+
+  if(offset_idx < DFSAN_UNION_T_OFFSET_LIST_SIZE + 1) {
+    node = __union_t_offset_list[offset_idx];
+
+    while(node != NULL) {
+      if(union_t_offset_is_equal(new_node->tainted, node->tainted)) {
+        *new_label = node->label;
+        return 1;
+      
+      }
+
+      node = node->next;
+    }
+
+  }
+  else {
+    Report("FATAL: DataFlowSanitizer: offset list out of bound\n");
+    Die(); 
+  }
+  
   return 0;
 }
 
-void dfsan_union_t_insert(void** union_t, dfsan_label label, u32 pos) {
-  if(union_t_check_label(label))
-    union_t[label] = union_t_create_node(pos, 1);
+int union_t_offset_is_exist(dfsan_label_info *label_info, struct offset_node* node, dfsan_label *new_label) {
+  // Linear search is bad.
+  
+  // label 0 is this situation exist ?
+  if(node->len == 0) {
+    *new_label = 0;
+    return 1;
+  }
+  // If total len is 1, no need to search just index union_t directly.
+  else if(node->len == 1) {
+    *new_label = node->tainted->pos + 1;
+    return 1;
+  }
+  // total len > 1, search offset list table.
+  else {
+    union_t_offset_list_search(node, new_label);
+  }
+  return 0;
 }
 
-dfsan_label dfsan_union_t_union(void** union_t, dfsan_label* last_label, dfsan_label l1, dfsan_label l2) {
-  struct tainted* tainted1, *tainted2, *union_tainted;
+void dfsan_union_t_insert(dfsan_label_info* label_info, u32 pos) {
+  if(union_t_check_label(label_info->last_label)) {
+    struct tainted *t = union_t_create_tainted_node(pos, 1);
+    label_info->union_t[label_info->input_label] = union_t_create_offset_node(t, 1, 1);
+  }
+}
+
+void output_offset_list(int fd) {
+  struct offset_node * node;
+  char buf[256];
+  for(u32 i = 0; i < DFSAN_UNION_T_OFFSET_LIST_SIZE; i++) {
+    node = __union_t_offset_list[i];
+    internal_snprintf(buf, sizeof(buf), "offset_list[%u]: ", i);  
+    WriteToFile(fd, buf, internal_strlen(buf));
+    while(node != NULL) {
+      internal_snprintf(buf, sizeof(buf), "label: %u,num: %u, len: %u -> ", node->label, node->num, node->len);  
+       WriteToFile(fd, buf, internal_strlen(buf));
+   
+      node = node->next;
+    } WriteToFile(fd, "\n", 1);
+   
+  }
+}
+
+void union_t_free_offset(struct offset_node *node) {
+  struct tainted *t  = node->tainted, *temp;
+
+  while(t != NULL) {
+    temp = t;
+    t = t->next;
+    free(temp);
+  }
+
+  free(node);
+}
+
+dfsan_label dfsan_union_t_union(dfsan_label_info* label_info, dfsan_label l1, dfsan_label l2) {
+  struct offset_node* node1, *node2, *union_node;
   dfsan_label new_label = 0;
 
-  if(union_t_check_label(*last_label)) {
-  tainted1 = (struct tainted *)union_t[l1];
-  tainted2 = (struct tainted *)union_t[l2];
-  
-  union_tainted = union_t_offset_union(tainted1, tainted2);
-  // Check if the offset is already exist.
-  if(!union_t_offset_is_exist(union_t, union_tainted, *last_label, &new_label)) {
-    *last_label += 1;
-    new_label = *last_label;
+  if(union_t_check_label(label_info->last_label)) {
+    node1 = (struct offset_node *)label_info->union_t[l1];
+    node2 = (struct offset_node *)label_info->union_t[l2];
     
-    union_t[new_label] = union_tainted;
-  }
+    union_node = union_t_offset_union(node1->tainted, node2->tainted);
+    // Check if the offset is already exist.
+    if(!union_t_offset_is_exist(label_info, union_node, &new_label)) {
+      label_info->union_label -= 1;
+      label_info->last_label += 1;
+      new_label = label_info->union_label;
+
+      if(union_t_check_label(label_info->last_label)) {
+        label_info->union_t[new_label] = union_node;
+        //insert into offset list
+        union_t_offset_list_insert(union_node, new_label);
+      }
+
+    }
+    else 
+      union_t_free_offset(union_node);
   }
   else {
-    *last_label += 1;
-    new_label = *last_label;
+    label_info->last_label += 1;
+    new_label = label_info->last_label;
   }
-  //fprintf(stderr, "dfsan_uniont_t_list_union, label1: %u, label2: %u, last label: %u, new label: %u\n", l1, l2, *last_label, new_label);
+  fprintf(stderr, "\ndfsan_uniont_t_list_union, label1: %u, label2: %u, last label: %u, union label: %u, new label: %u\n"
+  , l1, l2, label_info->last_label, label_info->union_label, new_label);
   
   return new_label;
 }
@@ -258,25 +403,40 @@ u32 union_t_tainted_byte_count(struct tainted *t) {
   return total_count;
 }
 
-void dfsan_union_t_dump(void** union_t, dfsan_label last_label, dfsan_label input_label, int fd) {
+void dfsan_union_t_dump(dfsan_label_info *label_info, int fd) {
     char buf[512];
-    fprintf(stderr, "dump Label list, input size: %u, num of label: %u, union_t size: %u\n", input_label, last_label, DFSAN_UNION_T_SIZE);
+    fprintf(stderr, "dump Label list, input size: %u, unions label: %u, num of label: %u, union_t size: %u\n",
+    label_info->input_label, DFSAN_UNION_T_SIZE - label_info->union_label, 
+    label_info->last_label, DFSAN_UNION_T_SIZE);
     u32 unique_label = 0;
-    u32 size = last_label <= DFSAN_UNION_T_SIZE ? last_label : DFSAN_UNION_T_SIZE;
-    for(u32 i = 0; i < size; i++) {
-      if(union_t[i] != NULL &&
-        union_t_tainted_byte_count((struct tainted* )union_t[i]) > 1) {
+    
+    for(u32 i = 1; i < label_info->input_label; i++) {
+      if(((struct offset_node *)label_info->union_t[i])->len > 1) {
         unique_label += 1;
-        internal_snprintf(buf, sizeof(buf), "Label: %u ", i);
+        internal_snprintf(buf, sizeof(buf), "Label: %u ", DFSAN_UNION_T_SIZE - i);
         WriteToFile(fd, buf, internal_strlen(buf));
-        union_t_output_tainted((struct tainted* )union_t[i], fd);
+        union_t_output_tainted(((struct offset_node *)label_info->union_t[i]), fd);
       }
     }
-   
+
+    for(u32 i = label_info->union_label; i < DFSAN_UNION_T_SIZE; i++) {
+      if(((struct offset_node *)label_info->union_t[i])->len > 1) {
+        unique_label += 1;
+        internal_snprintf(buf, sizeof(buf), "Label: %u ", DFSAN_UNION_T_SIZE - i);
+        WriteToFile(fd, buf, internal_strlen(buf));
+        union_t_output_tainted(((struct offset_node *)label_info->union_t[i]), fd);
+      }
+    }
+
+    output_offset_list(fd);
     internal_snprintf(buf, sizeof(buf), "dfsan_uniont_t_list_dump\n\
+    total label: %u\n\
     union_t size: %u\n\
+    input label: %u\n\
+    union label: %u\n\
     unique tainted label with more than 1 byte: %u\n\
-    ", last_label, unique_label);
+    ", label_info->last_label, DFSAN_UNION_T_SIZE,  label_info->input_label,
+     DFSAN_UNION_T_SIZE - label_info->union_label, unique_label);
     WriteToFile(fd, buf, internal_strlen(buf));
     fprintf(stderr, "dump Label info\n");
 }
