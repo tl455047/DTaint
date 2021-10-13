@@ -434,5 +434,7 @@ void dfsan_union_t_dump(dfsan_label_info *label_info, int fd) {
     fprintf(stderr, "dump Label info\n");
 }
 
-
-
+void dfsan_union_t_output_offset(dfsan_label_info *label_info, dfsan_label label) {
+  if(union_t_check_label(label)) 
+    union_t_output_tainted((struct offset_node *)label_info->union_t[label], 2);
+}

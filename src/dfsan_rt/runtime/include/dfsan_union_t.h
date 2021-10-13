@@ -36,4 +36,6 @@ dfsan_label dfsan_union_t_union(dfsan_label_info* label_info, dfsan_label l1, df
  */
 void dfsan_union_t_dump(dfsan_label_info *label_info, int fd);
 
+void dfsan_union_t_output_offset(dfsan_label_info *label_info, dfsan_label label);
+
 #endif
