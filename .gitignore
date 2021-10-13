@@ -2,5 +2,5 @@
 /testcase/*
 /build*
 .vscode
-/.vscode/*
+/.vscode*
 .gitignore
