@@ -457,7 +457,7 @@ static void InitializePlatformEarly() {
 }
 
 static void dfsan_fini() {
-  /*if (internal_strcmp(flags().dump_labels_at_exit, "") != 0) {
+  if (internal_strcmp(flags().dump_labels_at_exit, "") != 0) {
     fd_t fd = OpenFile(flags().dump_labels_at_exit, WrOnly);
     if (fd == kInvalidFd) {
       Report("WARNING: DataFlowSanitizer: unable to open output file %s\n",
@@ -469,8 +469,8 @@ static void dfsan_fini() {
            flags().dump_labels_at_exit);
     dfsan_dump_labels(fd);
     CloseFile(fd);
-  }*/
-  fd_t fd = OpenFile("./dump.txt", WrOnly);
+  }
+  /*fd_t fd = OpenFile("./dump.txt", WrOnly);
   if (fd == kInvalidFd) {
       Report("WARNING: DataFlowSanitizer: unable to open output file %s\n",
              flags().dump_labels_at_exit);
@@ -480,7 +480,8 @@ static void dfsan_fini() {
     Report("INFO: DataFlowSanitizer: dumping labels to %s\n",
            "./dump.txt");
     dfsan_dump_labels(fd);
-    CloseFile(fd);
+    CloseFile(fd);*/
+    dfsan_union_t_free(&__dfsan_label_info);
 }
 
 extern "C" void dfsan_flush() {

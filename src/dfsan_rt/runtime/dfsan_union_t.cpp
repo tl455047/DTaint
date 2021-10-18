@@ -1,12 +1,12 @@
 
-#include "../dfsan/dfsan.h"
-#include "include/dfsan_union_t.h"
-#include "../sanitizer_common/sanitizer_atomic.h"
-#include "../sanitizer_common/sanitizer_common.h"
-#include "../sanitizer_common/sanitizer_file.h"
-#include "../sanitizer_common/sanitizer_flags.h"
-#include "../sanitizer_common/sanitizer_flag_parser.h"
-#include "../sanitizer_common/sanitizer_libc.h"
+#include "dfsan.h"
+#include "dfsan_union_t.h"
+#include "sanitizer_common/sanitizer_atomic.h"
+#include "sanitizer_common/sanitizer_common.h"
+#include "sanitizer_common/sanitizer_file.h"
+#include "sanitizer_common/sanitizer_flags.h"
+#include "sanitizer_common/sanitizer_flag_parser.h"
+#include "sanitizer_common/sanitizer_libc.h"
 #include <cstdio>
 
 using namespace __dfsan;
@@ -47,26 +47,6 @@ using namespace __dfsan;
  * since the table size is at least 2x or 3x larger than the input size n. A efficient search
  * method is needed.
  */
-
-/**
- * Structure for storing a set of continuous bit 1 in offset.
- * For example, an input offset 111000111000111, can be represented
- * as a list of continuous bit 1, list pos:0,len:3 -> pos:6,len:3 ->
- * pos:12,len:3.
- */
-struct  __attribute__((__packed__)) tainted {
-  u32 pos;
-  u32 len;
-  struct tainted* next;
-};
-
-struct __attribute__((__packed__)) offset_node {
-  u32 num;
-  u32 len;
-  dfsan_label label;
-  struct tainted *tainted;
-  struct offset_node* next;
-};
 
 /**
  * Offset list store offsets in different element according to 
@@ -362,7 +342,7 @@ void union_t_free_offset(struct offset_node *node) {
 dfsan_label dfsan_union_t_union(dfsan_label_info* label_info, dfsan_label l1, dfsan_label l2) {
   struct offset_node* node1, *node2, *union_node;
   dfsan_label new_label = 0;
-
+  
   if(union_t_check_label(label_info->last_label)) {
     node1 = (struct offset_node *)label_info->union_t[l1];
     node2 = (struct offset_node *)label_info->union_t[l2];
@@ -437,4 +417,26 @@ void dfsan_union_t_dump(dfsan_label_info *label_info, int fd) {
 void dfsan_union_t_output_offset(dfsan_label_info *label_info, dfsan_label label) {
   if(union_t_check_label(label)) 
     union_t_output_tainted((struct offset_node *)label_info->union_t[label], 2);
+}
+
+
+void* dfsan_union_t_get_offset(dfsan_label_info *label_info, dfsan_label label) {
+  if(union_t_check_label(label))
+    return label_info->union_t[label];
+  else {
+    Report("FATAL: DataFlowSanitizer: try to access not exist label\n");
+    Die(); 
+  }
+}
+
+void dfsan_union_t_free(dfsan_label_info *label_info) {
+  
+  for(u32 i = label_info->union_label; i < DFSAN_UNION_T_SIZE; i++) {
+    union_t_free_offset((struct offset_node *)label_info->union_t[i]);
+  }
+
+  for(u32 i = 1; i < label_info->input_label; i++) {  
+    union_t_free_offset((struct offset_node *)label_info->union_t[i]);
+  }
+
 }

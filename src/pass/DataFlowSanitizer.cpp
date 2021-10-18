@@ -342,6 +342,7 @@ class DataFlowSanitizer : public ModulePass {
   IntegerType *ShadowTy;
   PointerType *ShadowPtrTy;
   IntegerType *IntptrTy;
+  IntegerType *SizeTy;
   ConstantInt *ZeroShadow;
   ConstantInt *ShadowPtrMask;
   ConstantInt *ShadowPtrMul;
@@ -360,8 +361,9 @@ class DataFlowSanitizer : public ModulePass {
   FunctionType *DFSanSetLabelFnTy;
   FunctionType *DFSanNonzeroLabelFnTy;
   FunctionType *DFSanVarargWrapperFnTy;
-  FunctionType *DFSanLoadStoreCmpCallbackFnTy;
+  FunctionType *DFSanStoreCmpCallbackFnTy;
   FunctionType *DFSanMemTransferCallbackFnTy;
+  FunctionType *DFSanLoadCallbackFnTy;
   FunctionCallee DFSanUnionFn;
   FunctionCallee DFSanCheckedUnionFn;
   FunctionCallee DFSanUnionLoadFn;
@@ -373,6 +375,7 @@ class DataFlowSanitizer : public ModulePass {
   FunctionCallee DFSanStoreCallbackFn;
   FunctionCallee DFSanMemTransferCallbackFn;
   FunctionCallee DFSanCmpCallbackFn;
+
   MDNode *ColdCallWeights;
   DFSanABIList ABIList;
   DenseMap<Value *, Function *> UnwrappedFnMap;
@@ -586,6 +589,7 @@ bool DataFlowSanitizer::doInitialization(Module &M) {
   ShadowTy = IntegerType::get(*Ctx, ShadowWidthBits);
   ShadowPtrTy = PointerType::getUnqual(ShadowTy);
   IntptrTy = DL.getIntPtrType(*Ctx);
+  SizeTy = Type::getInt64Ty(*Ctx);
   ZeroShadow = ConstantInt::getSigned(ShadowTy, 0);
   ShadowPtrMul = ConstantInt::getSigned(IntptrTy, ShadowWidthBytes);
   if (IsX86_64)
@@ -613,12 +617,15 @@ bool DataFlowSanitizer::doInitialization(Module &M) {
       Type::getVoidTy(*Ctx), None, /*isVarArg=*/false);
   DFSanVarargWrapperFnTy = FunctionType::get(
       Type::getVoidTy(*Ctx), Type::getInt8PtrTy(*Ctx), /*isVarArg=*/false);
-  DFSanLoadStoreCmpCallbackFnTy =
+  DFSanStoreCmpCallbackFnTy =
       FunctionType::get(Type::getVoidTy(*Ctx), ShadowTy, /*isVarArg=*/false);
   Type *DFSanMemTransferCallbackArgs[2] = {ShadowPtrTy, IntptrTy};
   DFSanMemTransferCallbackFnTy =
       FunctionType::get(Type::getVoidTy(*Ctx), DFSanMemTransferCallbackArgs,
                         /*isVarArg=*/false);
+  Type *DFSanLoadCallbackArgs[3] = {ShadowTy, IntptrTy, Type::getInt64Ty(*Ctx)};
+  DFSanLoadCallbackFnTy = 
+      FunctionType::get(Type::getVoidTy(*Ctx), DFSanLoadCallbackArgs, /*isVarArg=*/false);
 
   if (GetArgTLSPtr) {
     Type *ArgTLSTy = ArrayType::get(ShadowTy, 64);
@@ -805,13 +812,13 @@ void DataFlowSanitizer::initializeRuntimeFunctions(Module &M) {
 // Initializes event callback functions and declare them in the module
 void DataFlowSanitizer::initializeCallbackFunctions(Module &M) {
   DFSanLoadCallbackFn = Mod->getOrInsertFunction("__dfsan_load_callback",
-                                                 DFSanLoadStoreCmpCallbackFnTy);
+                                                 DFSanLoadCallbackFnTy);
   DFSanStoreCallbackFn = Mod->getOrInsertFunction(
-      "__dfsan_store_callback", DFSanLoadStoreCmpCallbackFnTy);
+      "__dfsan_store_callback", DFSanStoreCmpCallbackFnTy);
   DFSanMemTransferCallbackFn = Mod->getOrInsertFunction(
       "__dfsan_mem_transfer_callback", DFSanMemTransferCallbackFnTy);
   DFSanCmpCallbackFn = Mod->getOrInsertFunction("__dfsan_cmp_callback",
-                                                DFSanLoadStoreCmpCallbackFnTy);
+                                                DFSanStoreCmpCallbackFnTy);
 }
 
 bool DataFlowSanitizer::runOnModule(Module &M) {
@@ -1387,10 +1394,23 @@ void DFSanVisitor::visitLoadInst(LoadInst &LI) {
     DFSF.NonZeroChecks.push_back(Shadow);
 
   DFSF.setShadow(&LI, Shadow);
-  if (ClEventCallbacks) {
+  /**
+   * Modify DFSanLoadCallbackFn.
+   * Origin:
+   *   void __dfsan_load_callback(dfsan_label Label);
+   * Modified:
+   *   void __dfsan_load_callback(dfsan_label Label, void* ptr, size_t size); 
+   */
+  
+  /*if (ClEventCallbacks) {
     IRBuilder<> IRB(&LI);
     IRB.CreateCall(DFSF.DFS.DFSanLoadCallbackFn, Shadow);
-  }
+  }*/
+  IRBuilder<> IRB(&LI);
+  Value *Ptr = IRB.CreatePointerCast(LI.getPointerOperand(), DFSF.DFS.IntptrTy);
+  Value* Args[3] = {Shadow, Ptr, ConstantInt::get(DFSF.DFS.SizeTy, Size)};
+  IRB.CreateCall(DFSF.DFS.DFSanLoadCallbackFn, Args);
+
 }
 
 void DFSanFunction::storeShadow(Value *Addr, uint64_t Size, Align Alignment,

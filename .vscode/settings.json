@@ -76,6 +76,7 @@
         "stdio.h": "c",
         "common_interface_defs.h": "c",
         "*.def": "cpp",
-        "stddef.h": "c"
+        "stddef.h": "c",
+        "snapshot-inl.h": "c"
     }
 }

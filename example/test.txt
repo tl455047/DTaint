@@ -1,1 +1,4 @@
-FLAG{TEST}
+FLAG{The total number of elements successfully read is returned.
+If this number differs from the count parameter, either a reading error occurred or the end-of-file was reached while reading. In both cases, the proper indicator is set, which can be checked with ferror and feof, respectively.
+If either size or count is zero, the function returns zero and both the stream state and the content pointed by ptr remain unchanged.
+size_t is an unsigned integral type.}

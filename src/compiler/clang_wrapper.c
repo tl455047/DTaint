@@ -4,10 +4,10 @@
  */
 #define AFL_MAIN
 
-#include "../include/config.h"
-#include "../include/types.h"
-#include "../include/debug.h"
-#include "../include/alloc-inl.h"
+#include "include/config.h"
+#include "include/types.h"
+#include "include/debug.h"
+#include "include/alloc-inl.h"
 
 #include <stdio.h>
 #include <unistd.h>
@@ -87,14 +87,11 @@ static void dfsan_pass() {
    * After llvm-10, DFSan supports callback for load, store, mem transfer, and cmp.
    * Enable with argument -taint-dfsan-event-callbacks. 
    */
-  cc_params[cc_par_cnt++] = "-mllvm";
-  cc_params[cc_par_cnt++] = "-taint-dfsan-event-callbacks=1";
+  //cc_params[cc_par_cnt++] = "-mllvm";
+  //cc_params[cc_par_cnt++] = "-taint-dfsan-event-callbacks=1";
 
   cc_params[cc_par_cnt++] = "-mllvm";
   cc_params[cc_par_cnt++] = "-taint-dfsan-combine-pointer-labels-on-store=1";
-
-  cc_params[cc_par_cnt++] = "-mllvm";
-  cc_params[cc_par_cnt++] = "-taint-dfsan-debug-nonzero-labels=1";
   
 }
 
@@ -118,6 +115,12 @@ static void dfsan_runtime() {
   cc_params[cc_par_cnt++] = "-ldl";
   cc_params[cc_par_cnt++] = "-lpthread";    
   cc_params[cc_par_cnt++] = "-lstdc++";
+}
+
+static void afl_runtime() {
+  cc_params[cc_par_cnt++] = "-Wl,--whole-archive";
+  cc_params[cc_par_cnt++] = alloc_printf("%s/lib/libafl_rt.a", obj_path);
+  cc_params[cc_par_cnt++] = "-Wl,--no-whole-archive";
 }
 
 static void link_constructor() {
@@ -263,7 +266,7 @@ static void edit_params(u32 argc, char** argv) {
 
   taint_runtime();
   dfsan_runtime();
-  
+  afl_runtime();
   /**
    * Enable pie since dfsan maps shadow memory at 0x10000-0x200200000000, 
    * pie is needed to prevent overlapped.

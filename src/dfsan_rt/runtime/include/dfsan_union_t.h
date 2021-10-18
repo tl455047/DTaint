@@ -1,6 +1,6 @@
 #ifndef _DFSAN_UNION_T_H_
 #define _DFSAN_UNION_T_H_
-#include "../../dfsan/dfsan.h"
+#include "dfsan.h"
 /**
  * AFL prefer maximum input size is 1MB. Can we follow this condition ?
  * 1MB / 3 = 333KB may be the prefer input size.
@@ -14,6 +14,26 @@ struct dfsan_label_info {
   dfsan_label union_label;
   dfsan_label input_label;
   void* union_t[DFSAN_UNION_T_SIZE];
+};
+
+/**
+ * Structure for storing a set of continuous bit 1 in offset.
+ * For example, an input offset 111000111000111, can be represented
+ * as a list of continuous bit 1, list pos:0,len:3 -> pos:6,len:3 ->
+ * pos:12,len:3.
+ */
+struct  __attribute__((__packed__)) tainted {
+  u32 pos;
+  u32 len;
+  struct tainted* next;
+};
+
+struct __attribute__((__packed__)) offset_node {
+  u32 num;
+  u32 len;
+  dfsan_label label;
+  struct tainted *tainted;
+  struct offset_node* next;
 };
 
 //struct dfsan_label_info __dfsan_label_info;
@@ -38,4 +58,7 @@ void dfsan_union_t_dump(dfsan_label_info *label_info, int fd);
 
 void dfsan_union_t_output_offset(dfsan_label_info *label_info, dfsan_label label);
 
+void* dfsan_union_t_get_offset(dfsan_label_info *label_info, dfsan_label label);
+
+void dfsan_union_t_free(dfsan_label_info *label_info);
 #endif
