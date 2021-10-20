@@ -151,11 +151,12 @@ static uptr UnusedAddr() {
 }*/
 
 // Checks we do not run out of labels.
-static void dfsan_check_label(dfsan_label label) {
-  if (label == kInitializingLabel) {
-    Report("FATAL: DataFlowSanitizer: out of labels\n");
-    Die();
-  }
+int dfsan_check_label(dfsan_label_info* label_info, dfsan_label label) {
+  if(label <= label_info->input_label || (label >= label_info->union_label && label < DFSAN_UNION_T_SIZE)) 
+    return 1;
+  //Report("FATAL: DataFlowSanitizer: union_t is full\n");
+  //Die();
+  return 0;
 }
 
 // Resolves the union of two unequal labels.  Nonequality is a precondition for
@@ -221,7 +222,14 @@ dfsan_label __dfsan_union(dfsan_label l1, dfsan_label l2) {
   if (l1 > l2)
     Swap(l1, l2);
 
-  dfsan_label label;
+  dfsan_label label = 0;
+
+  if(__dfsan_label_info.last_label + 1 < DFSAN_UNION_T_SIZE &&
+  dfsan_check_label(&__dfsan_label_info, l1) &&
+  dfsan_check_label(&__dfsan_label_info, l2))
+    label = dfsan_union_t_union(&__dfsan_label_info, l1, l2);
+
+
 
   /**
    * Maybe we should check that if the union label is already in table,
@@ -229,7 +237,7 @@ dfsan_label __dfsan_union(dfsan_label l1, dfsan_label l2) {
    * searching time to O(logn).
    */
   
-  label = dfsan_union_t_union(&__dfsan_label_info, l1, l2);
+  
   
   return label;
 }
@@ -291,12 +299,11 @@ dfsan_label dfsan_create_label(const char *desc, void *userdata) {
 
 extern "C" SANITIZER_INTERFACE_ATTRIBUTE
 dfsan_label dfsan_create_label(u32 pos) {
-  __dfsan_label_info.input_label += 1;
-  __dfsan_label_info.last_label += 1;
-  dfsan_label label = __dfsan_label_info.input_label;
-  dfsan_check_label(__dfsan_label_info.last_label);
-
-  dfsan_union_t_insert(&__dfsan_label_info, pos);
+  
+  dfsan_label label = 0;
+  
+  if(__dfsan_label_info.last_label + 1 < DFSAN_UNION_T_SIZE) 
+    label = dfsan_union_t_insert(&__dfsan_label_info, pos);
 
   return label;
 }
@@ -405,7 +412,7 @@ void dfsan_union_t_init() {
   __dfsan_label_info.last_label = 0;
   __dfsan_label_info.input_label = 0;
   __dfsan_label_info.union_label = DFSAN_UNION_T_SIZE;
-  fprintf(stderr, "dfsan_uniont_t_init\n");
+  fprintf(stderr, "DFSan init\n");
 }
 
 extern "C" SANITIZER_INTERFACE_ATTRIBUTE void
@@ -481,7 +488,8 @@ static void dfsan_fini() {
            "./dump.txt");
     dfsan_dump_labels(fd);
     CloseFile(fd);*/
-    dfsan_union_t_free(&__dfsan_label_info);
+  dfsan_union_t_free(&__dfsan_label_info);
+  Printf("DFSan fini\n");
 }
 
 extern "C" void dfsan_flush() {

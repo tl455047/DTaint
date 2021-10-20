@@ -1143,6 +1143,30 @@ int __dfsw_snprintf(char *str, size_t size, const char *format,
   return ret;
 }
 
+/**
+ * New added wrapper.
+ */
+/*SANITIZER_INTERFACE_ATTRIBUTE
+char * __dfsw_strncat ( char * dst, const char * src, size_t num,
+                        dfsan_label dst_label, dfsan_label src_label,
+                        dfsan_label num_label, dfsan_label* ret_label) {
+  dfsan_label label;
+  char* ret = strncat(dst, src, num);
+  
+  if(!ret) {
+    for(int i = 0; i < strlen(dst); i++) {
+      label = dfsan_read_label(src + i, 1);
+
+      if(i == 0)
+        *ret_label = label;
+      dfsan_set_label(label, dst + i, 1);
+    }
+    
+  }
+  else
+    *ret_label = 0;
+
+}*/
 // Default empty implementations (weak). Users should redefine them.
 SANITIZER_INTERFACE_WEAK_DEF(void, __sanitizer_cov_trace_pc_guard, u32 *) {}
 SANITIZER_INTERFACE_WEAK_DEF(void, __sanitizer_cov_trace_pc_guard_init, u32 *,
@@ -1166,22 +1190,3 @@ SANITIZER_INTERFACE_WEAK_DEF(void, __dfsw___sanitizer_cov_trace_const_cmp8,
 SANITIZER_INTERFACE_WEAK_DEF(void, __dfsw___sanitizer_cov_trace_switch, void) {}
 }  // extern "C"
 
-/**
- * Definition for DFSan callback.
- */
-
-void __dfsan_load_callback(dfsan_label Label) {
-
-}
-
-void __dfsan_store_callback(dfsan_label Label) {
-
-}
-
-void __dfsan_mem_transfer_callback(dfsan_label *Start, size_t Len) {
-
-}
-
-void __dfsan_cmp_callback(dfsan_label CombinedLabel) {
-  
-}

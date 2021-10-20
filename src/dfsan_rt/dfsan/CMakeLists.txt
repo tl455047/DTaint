@@ -26,7 +26,7 @@ set(DFSAN_COMMON_CFLAGS ${SANITIZER_COMMON_CFLAGS})
 append_rtti_flag(OFF DFSAN_COMMON_CFLAGS)
 # Prevent clang from generating libc calls.
 append_list_if(COMPILER_RT_HAS_FFREESTANDING_FLAG -ffreestanding DFSAN_COMMON_CFLAGS)
-
+list(APPEND DFSAN_CFLAGS -g -ggdb) 
 # Static runtime library.
 add_compiler_rt_component(dfsan)
 

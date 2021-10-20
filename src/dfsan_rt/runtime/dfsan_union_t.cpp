@@ -212,15 +212,6 @@ static struct offset_node* union_t_offset_union(struct tainted* t1, struct taint
   return node;
 }
 
-int union_t_check_label(dfsan_label label) {
-  if(label >= DFSAN_UNION_T_SIZE) {
-    //Report("FATAL: DataFlowSanitizer: union_t is full\n");
-    //Die();
-    return 0;
-  }
-  return 1;
-}
-
 int union_t_offset_is_equal(struct tainted *t1, struct tainted *t2) {
   
   while(t1 != NULL && t2 != NULL) {
@@ -263,8 +254,8 @@ void union_t_offset_list_insert(struct offset_node *node, dfsan_label label) {
     __union_t_offset_list[offset_idx] = node;
   }
   else {
-    Report("FATAL: DataFlowSanitizer: offset list out of bound\n");
-    Die(); 
+    //Report("FATAL: DataFlowSanitizer: offset list out of bound\n");
+    //Die(); 
   }
   //fprintf(stderr, "len: %u, size: %u\n", t->len, offset_idx);
 
@@ -294,8 +285,8 @@ int union_t_offset_list_search(struct offset_node* new_node, u32 *new_label) {
 
   }
   else {
-    Report("FATAL: DataFlowSanitizer: offset list out of bound\n");
-    Die(); 
+    //Report("FATAL: DataFlowSanitizer: offset list out of bound\n");
+    //Die(); 
   }
   
   return 0;
@@ -320,11 +311,14 @@ int union_t_offset_is_exist(dfsan_label_info *label_info, struct offset_node* no
   }
 }
 
-void dfsan_union_t_insert(dfsan_label_info* label_info, u32 pos) {
-  if(union_t_check_label(label_info->last_label)) {
-    struct tainted *t = union_t_create_tainted_node(pos, 1);
-    label_info->union_t[label_info->input_label] = union_t_create_offset_node(t, 1, 1);
-  }
+dfsan_label dfsan_union_t_insert(dfsan_label_info* label_info, u32 pos) {
+
+  struct tainted *t = union_t_create_tainted_node(pos, 1);
+  label_info->input_label += 1;
+  label_info->last_label += 1;
+  label_info->union_t[label_info->input_label] = union_t_create_offset_node(t, 1, 1); 
+
+  return label_info->input_label;
 }
 
 void union_t_free_offset(struct offset_node *node) {
@@ -343,31 +337,22 @@ dfsan_label dfsan_union_t_union(dfsan_label_info* label_info, dfsan_label l1, df
   struct offset_node* node1, *node2, *union_node;
   dfsan_label new_label = 0;
   
-  if(union_t_check_label(label_info->last_label)) {
-    node1 = (struct offset_node *)label_info->union_t[l1];
-    node2 = (struct offset_node *)label_info->union_t[l2];
+  node1 = (struct offset_node *)label_info->union_t[l1];
+  node2 = (struct offset_node *)label_info->union_t[l2];
     
-    union_node = union_t_offset_union(node1->tainted, node2->tainted);
-    // Check if the offset is already exist.
-    if(!union_t_offset_is_exist(label_info, union_node, &new_label)) {
-      label_info->union_label -= 1;
-      label_info->last_label += 1;
-      new_label = label_info->union_label;
-
-      if(union_t_check_label(label_info->last_label)) {
-        label_info->union_t[new_label] = union_node;
-        //insert into offset list
-        union_t_offset_list_insert(union_node, new_label);
-      }
-
-    }
-    else 
-      union_t_free_offset(union_node);
-  }
-  else {
+  union_node = union_t_offset_union(node1->tainted, node2->tainted);
+  // Check if the offset is already exist.
+  if(!union_t_offset_is_exist(label_info, union_node, &new_label)) {
+    label_info->union_label -= 1;
     label_info->last_label += 1;
-    new_label = label_info->last_label;
+    new_label = label_info->union_label;
+
+    label_info->union_t[new_label] = union_node;
+    //insert into offset list
+    union_t_offset_list_insert(union_node, new_label);
   }
+  else 
+    union_t_free_offset(union_node);
   
   //fprintf(stderr, "\ndfsan_uniont_t_list_union, label1: %u, label2: %u, last label: %u, union label: %u, new label: %u\n"
   //, l1, l2, label_info->last_label, label_info->union_label, new_label);
@@ -415,18 +400,15 @@ void dfsan_union_t_dump(dfsan_label_info *label_info, int fd) {
 }
 
 void dfsan_union_t_output_offset(dfsan_label_info *label_info, dfsan_label label) {
-  if(union_t_check_label(label)) 
-    union_t_output_tainted((struct offset_node *)label_info->union_t[label], 2);
+
+  union_t_output_tainted((struct offset_node *)label_info->union_t[label], 2);
 }
 
 
 void* dfsan_union_t_get_offset(dfsan_label_info *label_info, dfsan_label label) {
-  if(union_t_check_label(label))
-    return label_info->union_t[label];
-  else {
-    Report("FATAL: DataFlowSanitizer: try to access not exist label\n");
-    Die(); 
-  }
+ 
+  return label_info->union_t[label];
+
 }
 
 void dfsan_union_t_free(dfsan_label_info *label_info) {
@@ -438,5 +420,5 @@ void dfsan_union_t_free(dfsan_label_info *label_info) {
   for(u32 i = 1; i < label_info->input_label; i++) {  
     union_t_free_offset((struct offset_node *)label_info->union_t[i]);
   }
-
+  // label is out of label table, this run is meaningless.
 }

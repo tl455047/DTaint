@@ -523,13 +523,9 @@ offset_list[12]:
 offset_list[13]: 
 offset_list[14]: 
 offset_list[15]: 
-offset_list[16]: 
-offset_list[17]: 
-offset_list[18]: 
-offset_list[19]: 
 dfsan_uniont_t_list_dump
     total label: 720
-    union_t size: 1048576
+    union_t size: 65536
     input label: 465
     union label: 255
     unique tainted label with more than 1 byte: 255

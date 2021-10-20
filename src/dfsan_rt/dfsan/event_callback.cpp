@@ -36,8 +36,8 @@ void __dfsan_load_callback(dfsan_label Label, void* ptr, size_t size) {
    return;
   //taint_load_count++;
   //dfsan_union_t_output_offset(&__dfsan_label_info, Label);
-  dfsan_hook_load_inst(&__dfsan_label_info, Label);
-  fprintf(stderr, "Label %u loaded from memory %p size: %u\n", Label, ptr, size);
+  dfsan_hook_load_inst(&__dfsan_label_info, Label, ptr, size);
+
 }
 
 void __dfsan_mem_transfer_callback(dfsan_label *Start, size_t Len) {
