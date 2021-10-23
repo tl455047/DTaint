@@ -529,4 +529,5 @@ dfsan_uniont_t_list_dump
     input label: 465
     union label: 255
     unique tainted label with more than 1 byte: 255
+    tainted bytes: 1
     

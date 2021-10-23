@@ -8,12 +8,12 @@
 
 #define DFSAN_UNION_T_OFFSET_LIST_SIZE 16
 #define DFSAN_UNION_T_SIZE (1 << DFSAN_UNION_T_OFFSET_LIST_SIZE)  
-
+#define DFSAN_UNION_T_MAXIMUM_NODE_NUM (1 << 8)
 struct dfsan_label_info {
   dfsan_label last_label;
   dfsan_label union_label;
-  dfsan_label input_label;
-  void* union_t[DFSAN_UNION_T_SIZE];
+  dfsan_label input_label; 
+  u32 tainted_bytes;
 };
 
 /**
@@ -25,7 +25,7 @@ struct dfsan_label_info {
 struct  __attribute__((__packed__)) tainted {
   u32 pos;
   u32 len;
-  struct tainted* next;
+  //struct tainted* next;
 };
 
 struct __attribute__((__packed__)) offset_node {
@@ -34,6 +34,11 @@ struct __attribute__((__packed__)) offset_node {
   dfsan_label label;
   struct tainted *tainted;
   struct offset_node* next;
+};
+
+struct dfsan_union_t {
+  struct offset_node union_t[DFSAN_UNION_T_SIZE + 2]; // one more element is used as temp.
+  struct tainted offset_t[DFSAN_UNION_T_SIZE + 2][DFSAN_UNION_T_MAXIMUM_NODE_NUM];
 };
 
 //struct dfsan_label_info __dfsan_label_info;
@@ -56,11 +61,11 @@ dfsan_label dfsan_union_t_union(dfsan_label_info* label_info, dfsan_label l1, df
  */
 void dfsan_union_t_dump(dfsan_label_info *label_info, int fd);
 
-void dfsan_union_t_output_offset(dfsan_label_info *label_info, dfsan_label label);
+void dfsan_union_t_output_offset(dfsan_label label);
 
-void* dfsan_union_t_get_offset(dfsan_label_info *label_info, dfsan_label label);
-
-void dfsan_union_t_free(dfsan_label_info *label_info);
+void* dfsan_union_t_get_offset(dfsan_label label);
 
 int dfsan_check_label(dfsan_label_info* label_info, dfsan_label label);
+
+static struct offset_node* union_t_offset_union(dfsan_label l1, dfsan_label l2, dfsan_label new_label);
 #endif

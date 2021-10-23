@@ -6,23 +6,16 @@
 #include <cstring>
 #include <stdint.h>
 
+//extern struct d_tainted_map *__afl_d_tainted_map;
+
 struct d_tainted_map *__afl_d_tainted_map;
 
-void offset_cpy(struct d_tainted *dst,  struct tainted* t) {
-  u32 i = 0;
-  while(t != NULL && i < TAINTED_MAP_H) {
-    dst[i].pos = t->pos;
-    dst[i].len = t->len;
-    t = t->next;
-    i += 1;
-  } 
-}
 
 void dfsan_hook_load_inst(dfsan_label_info *label_info, dfsan_label label, void* ptr, size_t size) {
   
-  if (unlikely(!__afl_d_tainted_map) || !dfsan_check_label(label_info, label)) return;
+ /* if (unlikely(!__afl_d_tainted_map) || !dfsan_check_label(label_info, label)) return;
 
-  struct offset_node* node = (struct offset_node *)dfsan_union_t_get_offset(label_info, label);
+  struct offset_node* node = (struct offset_node *)dfsan_union_t_get_offset(label);
   
   uintptr_t k = (uintptr_t)__builtin_return_address(0);
   k = (k >> 4) ^ (k << 8);
@@ -40,19 +33,16 @@ void dfsan_hook_load_inst(dfsan_label_info *label_info, dfsan_label label, void*
   __afl_d_tainted_map->header[k].shape = size;
   __afl_d_tainted_map->header[k].ptr = ptr;
 
-  if(size == 1)
-    __afl_d_tainted_map->header[k].value = *(char *)ptr;
-  else if(size == 2)
-    __afl_d_tainted_map->header[k].value = *(unsigned short *)ptr;
-  else if(size == 4)
-    __afl_d_tainted_map->header[k].value = *(unsigned int *)ptr;
-  else 
-    __afl_d_tainted_map->header[k].value = *(unsigned long long *)ptr;
   // Copy offset to shm.
-  offset_cpy(__afl_d_tainted_map->tainted_data[k], node->tainted);
+  memcpy(__afl_d_tainted_map->tainted_data[k], node->tainted, node->num * sizeof(struct tainted));
   
   //fprintf(stderr, "Label %u loaded from memory %p size: %u\n", label, ptr, size);
   //dfsan_union_t_output_offset(label_info, label);
-  
+  dfsan_union_t_output_offset(label);*/
 }
 
+void dtaint_dump(dfsan_label_info *label_info) {
+  if (unlikely(!__afl_d_tainted_map)) return;
+  __afl_d_tainted_map->tainted_bytes = label_info->tainted_bytes;
+  __afl_d_tainted_map->union_label = DFSAN_UNION_T_SIZE - label_info->union_label;
+}

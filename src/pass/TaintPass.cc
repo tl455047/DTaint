@@ -47,7 +47,7 @@ class TaintPass: public ModulePass, public InstVisitor<TaintPass> {
         void visitMemSetInst(MemSetInst &I);
         void visitCmpInst(CmpInst &CI);
         void visitBinaryOperator(BinaryOperator &BO);
-       
+        void visitCallBase(CallBase &CB);
         
 };
 
@@ -94,17 +94,25 @@ bool TaintPass::runOnModule(Module &M) {
      * insert the function in runOnModule may be the better choice.
      */
     // getorinsertfunction
-    DebugFunc = M.getOrInsertFunction("__dfsw_debug_func", DebugFuncTy);
+    //DebugFunc = M.getOrInsertFunction("debug_main", DebugFuncTy);
     /*LoadFuncCallback = M.getOrInsertFunction("__taint_load_callback", LoadFuncCallbackTy);
     StoreFuncCallback = M.getOrInserFunction("__taint_store_callback", StoreFuncCallbackTy);
     MemTransferCallback = M.getOrInsertFunction("__taint_mem_transfer_callback", MemTransferCallbackTy);*/
-    for (Function &i : M) {
-        //if(i.isIntrinsic())
-            //errs() << i.getName() << "\n";
-        if(!i.isIntrinsic() && &i != DebugFunc.getCallee()->stripPointerCasts() ) {
-            //errs() << i.getName()<<"\n";
-            visit(i);
+    //ConstantInt::get(Type::getInt32Ty(M.getContext()), 10000)
+    GlobalVariable *Pipe_argc =
+      new GlobalVariable(M, Type::getInt32Ty(M.getContext()), false,
+                         GlobalValue::ExternalLinkage, ConstantInt::get(Type::getInt32Ty(M.getContext()), 10000), "__pipe_argc");
+    for (Function &F : M) {
+    
+        if(F.getName() == "main") {
+            auto &BB = F.getEntryBlock();
+            BasicBlock::iterator IP = BB.getFirstInsertionPt();
+            IRBuilder<> IRB(&(*IP));
+            errs() << F.getName()<<"\n"; 
+            Value *Argc = IRB.CreateLoad(Type::getInt32Ty(M.getContext()), Pipe_argc);
+            F.getArg(0)->replaceAllUsesWith(Argc);
         }
+        
     }
 
     return true;
@@ -153,6 +161,9 @@ void TaintPass::visitMemSetInst(MemSetInst &I) {
 void TaintPass::visitCmpInst(CmpInst &CI) {
     //errs() << "visit cmp inst \n"; 
    
+}
+
+void TaintPass::visitCallBase(CallBase &CB) {
 }
 
 static RegisterPass<TaintPass> X("taint", "TaintPass", false, false);

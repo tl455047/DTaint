@@ -261,12 +261,12 @@ static void edit_params(u32 argc, char** argv) {
     cc_params[cc_par_cnt++] = "-funroll-loops";
   }
   
-  taint_pass();
+  //taint_pass();
   dfsan_pass();
 
-  taint_runtime();
+  //taint_runtime();
   dfsan_runtime();
-  afl_runtime();
+  //afl_runtime();
   /**
    * Enable pie since dfsan maps shadow memory at 0x10000-0x200200000000, 
    * pie is needed to prevent overlapped.

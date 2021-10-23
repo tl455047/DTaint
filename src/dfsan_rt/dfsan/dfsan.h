@@ -38,6 +38,7 @@ void dfsan_set_label(dfsan_label label, void *addr, uptr size);
 dfsan_label dfsan_read_label(const void *addr, uptr size);
 dfsan_label dfsan_union(dfsan_label l1, dfsan_label l2);
 dfsan_label dfsan_create_label(u32 pos);
+void dfsan_set_input_label(dfsan_label label, void *addr, uptr size);
 }  // extern "C"
 
 template <typename T>

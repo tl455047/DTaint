@@ -31,7 +31,7 @@ size_t __dfsw_fread(void *ptr, size_t size, size_t count, FILE *stream,
     if(len > 0) {
         for(int i = 0; i < len; i++) {
             label = dfsan_create_label(i);
-            dfsan_set_label(label, (char* )ptr + i, 1);
+            dfsan_set_input_label(label, (char* )ptr + i, 1);
         }    
     }
     *ret_label = 0;

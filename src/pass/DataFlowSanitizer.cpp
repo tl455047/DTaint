@@ -1402,15 +1402,15 @@ void DFSanVisitor::visitLoadInst(LoadInst &LI) {
    *   void __dfsan_load_callback(dfsan_label Label, void* ptr, size_t size); 
    */
   
-  /*if (ClEventCallbacks) {
+  if (ClEventCallbacks) {
+    //IRBuilder<> IRB(&LI);
+    //IRB.CreateCall(DFSF.DFS.DFSanLoadCallbackFn, Shadow);
     IRBuilder<> IRB(&LI);
-    IRB.CreateCall(DFSF.DFS.DFSanLoadCallbackFn, Shadow);
-  }*/
-  IRBuilder<> IRB(&LI);
-  Value *Ptr = IRB.CreatePointerCast(LI.getPointerOperand(), DFSF.DFS.IntptrTy);
-  Value* Args[3] = {Shadow, Ptr, ConstantInt::get(DFSF.DFS.SizeTy, Size)};
-  IRB.CreateCall(DFSF.DFS.DFSanLoadCallbackFn, Args);
-
+    Value *Ptr = IRB.CreatePointerCast(LI.getPointerOperand(), DFSF.DFS.IntptrTy);
+    Value* Args[3] = {Shadow, Ptr, ConstantInt::get(DFSF.DFS.SizeTy, Size)};
+    IRB.CreateCall(DFSF.DFS.DFSanLoadCallbackFn, Args);
+  }
+ 
 }
 
 void DFSanFunction::storeShadow(Value *Addr, uint64_t Size, Align Alignment,

@@ -5,11 +5,14 @@
 
 #define MAXSIZE 256
 
+char dst[MAXSIZE];
 int main(int argc, char** argv)
 {  
     char src[MAXSIZE] = {1};
     FILE *f;
 	int size;
+
+    fprintf(stderr, "argc: %d\n", argc);
 
 	f = fopen ("test.txt", "r");
 	  
@@ -32,6 +35,8 @@ int main(int argc, char** argv)
             temp += src[i+1];
         src[i] = temp;
     }
-    
+    for(int i = 0; i < MAXSIZE; i++) {
+        memset(dst, src[i], 1);
+    }
     return 0;
 }

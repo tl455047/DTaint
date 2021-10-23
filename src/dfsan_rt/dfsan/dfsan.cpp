@@ -27,7 +27,7 @@
 
 #include "dfsan/dfsan.h"
 #include "../runtime/include/dfsan_union_t.h"
-
+#include "dfsan_hook.h"
 using namespace __dfsan;
 
 //typedef atomic_uint32_t atomic_dfsan_label;
@@ -55,9 +55,9 @@ SANITIZER_INTERFACE_ATTRIBUTE uptr __dfsan_shadow_ptr_mask;
 // |                    |
 // |       unused       |
 // |                    |
-// +--------------------+ 0x200200000000 (kUnusedAddr)
+// +--------------------+ 0x400400000000 (kUnusedAddr)
 // |    union table     |
-// +--------------------+ 0x200000000000 (kUnionTableAddr)
+// +--------------------+ 0x400000000000 (kUnionTableAddr)
 // |   shadow memory    |
 // +--------------------+ 0x000000010000 (kShadowAddr)
 // | reserved by kernel |
@@ -141,15 +141,11 @@ SANITIZER_INTERFACE_ATTRIBUTE uptr __dfsan_shadow_ptr_mask;
 int __dfsan::vmaSize;
 #endif
 
+//struct dfsan_union_t __dfsan_union_t;
 static uptr UnusedAddr() {
-  return MappingArchImpl<MAPPING_UNION_TABLE_ADDR>();
-        // + sizeof(dfsan_union_table_t);
+  return MappingArchImpl<MAPPING_UNION_TABLE_ADDR>()
+         + sizeof(struct dfsan_union_t);
 }
-
-/*static atomic_dfsan_label *union_table(dfsan_label l1, dfsan_label l2) {
-  return &(*(dfsan_union_table_t *) UnionTableAddr())[l1][l2];
-}*/
-
 // Checks we do not run out of labels.
 int dfsan_check_label(dfsan_label_info* label_info, dfsan_label label) {
   if(label <= label_info->input_label || (label >= label_info->union_label && label < DFSAN_UNION_T_SIZE)) 
@@ -322,6 +318,9 @@ void __dfsan_set_label(dfsan_label label, void *addr, uptr size) {
     if (label == *labelp)
       continue;
 
+    if(label && !*labelp) {
+      __dfsan_label_info.tainted_bytes += 1;
+    }
     *labelp = label;
   }
 }
@@ -331,10 +330,35 @@ void dfsan_set_label(dfsan_label label, void *addr, uptr size) {
   __dfsan_set_label(label, addr, size);
 }
 
+/**
+ * In order to recognize input and propagation position.
+ */
+extern "C" SANITIZER_INTERFACE_ATTRIBUTE
+void __dfsan_set_input_label(dfsan_label label, void *addr, uptr size) {
+  for (dfsan_label *labelp = shadow_for(addr); size != 0; --size, ++labelp) {
+    // Don't write the label if it is already the value we need it to be.
+    // In a program where most addresses are not labeled, it is common that
+    // a page of shadow memory is entirely zeroed.  The Linux copy-on-write
+    // implementation will share all of the zeroed pages, making a copy of a
+    // page when any value is written.  The un-sharing will happen even if
+    // the value written does not change the value in memory.  Avoiding the
+    // write when both |label| and |*labelp| are zero dramatically reduces
+    // the amount of real memory used by large programs.
+    if (label == *labelp)
+      continue;
+
+    *labelp = label;
+  }
+}
+
+SANITIZER_INTERFACE_ATTRIBUTE
+void dfsan_set_input_label(dfsan_label label, void *addr, uptr size) {
+  __dfsan_set_input_label(label, addr, size);
+}
 SANITIZER_INTERFACE_ATTRIBUTE
 void dfsan_add_label(dfsan_label label, void *addr, uptr size) {
   for (dfsan_label *labelp = shadow_for(addr); size != 0; --size, ++labelp)
-    if (*labelp != label)
+    if (*labelp != label) 
       *labelp = __dfsan_union(*labelp, label);
 }
 
@@ -412,12 +436,13 @@ void dfsan_union_t_init() {
   __dfsan_label_info.last_label = 0;
   __dfsan_label_info.input_label = 0;
   __dfsan_label_info.union_label = DFSAN_UNION_T_SIZE;
+  __dfsan_label_info.tainted_bytes = 0;
   fprintf(stderr, "DFSan init\n");
 }
 
 extern "C" SANITIZER_INTERFACE_ATTRIBUTE void
 dfsan_dump_labels(int fd) {
-
+  
   dfsan_union_t_dump(&__dfsan_label_info, fd);
 }
 
@@ -488,7 +513,7 @@ static void dfsan_fini() {
            "./dump.txt");
     dfsan_dump_labels(fd);
     CloseFile(fd);*/
-  dfsan_union_t_free(&__dfsan_label_info);
+  dtaint_dump(&__dfsan_label_info);
   Printf("DFSan fini\n");
 }
 
@@ -526,7 +551,6 @@ static void dfsan_init(int argc, char **argv, char **envp) {
 
   //__dfsan_label_info[kInitializingLabel].desc = "<init label>";
   dfsan_union_t_init();
-
 }
 
 /**
