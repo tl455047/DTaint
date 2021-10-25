@@ -66,7 +66,7 @@
 #define CTOR_PRIO 3
 
 #include <sys/mman.h>
-#include <fcntl.h>
+#include <sys/stat.h> 
 
 /* Globals needed by the injected instrumentation. The __afl_area_initial region
    is used for instrumentation output before __afl_map_shm() has a chance to
@@ -540,9 +540,14 @@ static void __afl_map_shm(void) {
 
     }
 
+    //__afl_d_tainted_map = mmap((void *)0x10000, 0x4000081b2000, PROT_READ | PROT_WRITE,
+    //           MAP_PRIVATE | MAP_FIXED | MAP_NORESERVE | MAP_ANON, shm_id, 0);
+
+    
     /* map the shared memory segment to the address space of the process */
-    shm_base = mmap(0, sizeof(struct cmp_map), PROT_READ | PROT_WRITE,
+    shm_base = mmap(0, sizeof(struct d_tainted_map), PROT_READ | PROT_WRITE,
                     MAP_SHARED, shm_fd, 0);
+    
     if (shm_base == MAP_FAILED) {
 
       close(shm_fd);
@@ -553,15 +558,22 @@ static void __afl_map_shm(void) {
       exit(2);
 
     }
-
+   
     //__afl_cmp_map = shm_base;
     __afl_d_tainted_map = shm_base;
+
+    fprintf(stderr, "dtaint mmaping: %x\n", __afl_d_tainted_map);
+
+    char str[64] = "testing for merge shadow and shm.\n";
+    strncpy((char *)__afl_d_tainted_map, str, strlen(str));
+
 #else
     u32 shm_id = atoi(id_str);
 
     //__afl_cmp_map = (struct cmp_map *)shmat(shm_id, NULL, 0);
     __afl_d_tainted_map = (struct d_tainted_map *)shmat(shm_id, NULL, 0);
-   
+
+ 
 #endif
     //__afl_cmp_map_backup = __afl_cmp_map;
     __afl_d_tainted_map_backup = __afl_d_tainted_map;

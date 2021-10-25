@@ -335,6 +335,10 @@ void dfsan_union_t_dump(dfsan_label_info *label_info, int fd) {
      DFSAN_UNION_T_SIZE - label_info->union_label, unique_label, label_info->tainted_bytes);
     WriteToFile(fd, buf, internal_strlen(buf));
     fprintf(stderr, "dump Label info\n");
+
+    
+
+
 }
 
 void dfsan_union_t_output_offset(dfsan_label label) {

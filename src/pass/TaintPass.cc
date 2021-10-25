@@ -93,22 +93,16 @@ bool TaintPass::runOnModule(Module &M) {
      * Seems that object FunctionCallee will be released after doInitialization,
      * insert the function in runOnModule may be the better choice.
      */
-    // getorinsertfunction
-    //DebugFunc = M.getOrInsertFunction("debug_main", DebugFuncTy);
-    /*LoadFuncCallback = M.getOrInsertFunction("__taint_load_callback", LoadFuncCallbackTy);
-    StoreFuncCallback = M.getOrInserFunction("__taint_store_callback", StoreFuncCallbackTy);
-    MemTransferCallback = M.getOrInsertFunction("__taint_mem_transfer_callback", MemTransferCallbackTy);*/
-    //ConstantInt::get(Type::getInt32Ty(M.getContext()), 10000)
     GlobalVariable *Pipe_argc =
       new GlobalVariable(M, Type::getInt32Ty(M.getContext()), false,
                          GlobalValue::ExternalLinkage, ConstantInt::get(Type::getInt32Ty(M.getContext()), 10000), "__pipe_argc");
     for (Function &F : M) {
     
         if(F.getName() == "main") {
+            errs() << F.getName()<<"\n"; 
             auto &BB = F.getEntryBlock();
             BasicBlock::iterator IP = BB.getFirstInsertionPt();
             IRBuilder<> IRB(&(*IP));
-            errs() << F.getName()<<"\n"; 
             Value *Argc = IRB.CreateLoad(Type::getInt32Ty(M.getContext()), Pipe_argc);
             F.getArg(0)->replaceAllUsesWith(Argc);
         }

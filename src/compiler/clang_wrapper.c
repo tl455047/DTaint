@@ -118,6 +118,7 @@ static void dfsan_runtime() {
 }
 
 static void afl_runtime() {
+  cc_params[cc_par_cnt++] = "-lrt";
   cc_params[cc_par_cnt++] = "-Wl,--whole-archive";
   cc_params[cc_par_cnt++] = alloc_printf("%s/lib/libafl_rt.a", obj_path);
   cc_params[cc_par_cnt++] = "-Wl,--no-whole-archive";
@@ -266,7 +267,7 @@ static void edit_params(u32 argc, char** argv) {
 
   //taint_runtime();
   dfsan_runtime();
-  //afl_runtime();
+  afl_runtime();
   /**
    * Enable pie since dfsan maps shadow memory at 0x10000-0x200200000000, 
    * pie is needed to prevent overlapped.

@@ -28,6 +28,8 @@
 #include "dfsan/dfsan.h"
 #include "../runtime/include/dfsan_union_t.h"
 #include "dfsan_hook.h"
+#include "../../afl_rt/include/config.h"
+#include <cstring>
 using namespace __dfsan;
 
 //typedef atomic_uint32_t atomic_dfsan_label;
@@ -513,6 +515,7 @@ static void dfsan_fini() {
            "./dump.txt");
     dfsan_dump_labels(fd);
     CloseFile(fd);*/
+
   dtaint_dump(&__dfsan_label_info);
   Printf("DFSan fini\n");
 }
