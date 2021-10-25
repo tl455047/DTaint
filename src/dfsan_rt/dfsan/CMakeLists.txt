@@ -1,9 +1,9 @@
 include_directories(..)
 
 include_directories(.)
-include_directories(../runtime/include)
-include_directories(../../afl_rt/include)
+include_directories(../extension/include)
 include_directories(../sanitizer_common)
+include_directories(../../afl_rt/include)
 
 # Runtime library sources and build flags.
 set(DFSAN_RTL_SOURCES
@@ -12,8 +12,8 @@ set(DFSAN_RTL_SOURCES
   dfsan_interceptors.cpp
   dfsan_io.cpp
   event_callback.cpp
-  ../runtime/dfsan_union_t.cpp
-  ../runtime/dfsan_hook.cpp
+  ../extension/dfsan_union_t.cpp
+  ../extension/dfsan_hook.cpp
   )
 
 set(DFSAN_RTL_HEADERS

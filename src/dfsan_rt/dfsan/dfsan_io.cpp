@@ -1,9 +1,8 @@
-#include "../dfsan_rt/sanitizer_common/sanitizer_common.h"
-#include "../dfsan_rt/sanitizer_common/sanitizer_internal_defs.h"
-#include "../dfsan_rt/sanitizer_common/sanitizer_linux.h"
+#include "sanitizer_common/sanitizer_common.h"
+#include "sanitizer_common/sanitizer_internal_defs.h"
+#include "sanitizer_common/sanitizer_linux.h"
 
-#include "../dfsan_rt/dfsan/dfsan.h"
-//#include "../dfsan_rt/include/sanitizer/dfsan_interface.h"
+#include "dfsan.h"
 #include <stdio.h>
 #include <string.h>
 #include <sys/types.h>

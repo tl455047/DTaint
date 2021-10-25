@@ -577,7 +577,6 @@ static void __afl_map_shm(void) {
 #endif
     //__afl_cmp_map_backup = __afl_cmp_map;
     __afl_d_tainted_map_backup = __afl_d_tainted_map;
-
     //if (!__afl_cmp_map || __afl_cmp_map == (void *)-1) {
     if(!__afl_d_tainted_map || __afl_d_tainted_map == (void *)-1) {
       perror("shmat for dtaint");

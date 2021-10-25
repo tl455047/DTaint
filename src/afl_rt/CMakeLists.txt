@@ -4,7 +4,7 @@ add_library(afl_rt STATIC
             afl-compiler-rt.o.c)
 
 include_directories(include)
-include_directories(../dfsan_rt/runtime/include)
+include_directories(../dfsan_rt/extension/include)
 
 set_target_properties(afl_rt 
     PROPERTIES

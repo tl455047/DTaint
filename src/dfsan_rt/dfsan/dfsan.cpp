@@ -25,11 +25,10 @@
 #include "sanitizer_common/sanitizer_flag_parser.h"
 #include "sanitizer_common/sanitizer_libc.h"
 
-#include "dfsan/dfsan.h"
-#include "../runtime/include/dfsan_union_t.h"
+#include "dfsan.h"
+#include "dfsan_union_t.h"
 #include "dfsan_hook.h"
-#include "../../afl_rt/include/config.h"
-#include <cstring>
+
 using namespace __dfsan;
 
 //typedef atomic_uint32_t atomic_dfsan_label;
@@ -319,8 +318,10 @@ void __dfsan_set_label(dfsan_label label, void *addr, uptr size) {
     // the amount of real memory used by large programs.
     if (label == *labelp)
       continue;
-
-    if(label && !*labelp) {
+    
+    //fprintf(stderr, "addr: %x, addr: %x\n", addr, labelp);
+    if(label && !*labelp && dfsan_check_label(&__dfsan_label_info, label)) {
+      dtaint_set_shm(labelp, label);
       __dfsan_label_info.tainted_bytes += 1;
     }
     *labelp = label;
@@ -515,7 +516,6 @@ static void dfsan_fini() {
            "./dump.txt");
     dfsan_dump_labels(fd);
     CloseFile(fd);*/
-
   dtaint_dump(&__dfsan_label_info);
   Printf("DFSan fini\n");
 }

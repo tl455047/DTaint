@@ -10,7 +10,6 @@
 
 struct d_tainted_map *__afl_d_tainted_map;
 
-
 void dfsan_hook_load_inst(dfsan_label_info *label_info, dfsan_label label, void* ptr, size_t size) {
   
  /* if (unlikely(!__afl_d_tainted_map) || !dfsan_check_label(label_info, label)) return;
@@ -43,6 +42,24 @@ void dfsan_hook_load_inst(dfsan_label_info *label_info, dfsan_label label, void*
 
 void dtaint_dump(dfsan_label_info *label_info) {
   if (unlikely(!__afl_d_tainted_map)) return;
-  __afl_d_tainted_map->tainted_bytes = label_info->tainted_bytes;
-  __afl_d_tainted_map->union_label = DFSAN_UNION_T_SIZE - label_info->union_label;
+  //__afl_d_tainted_map->tainted_bytes = label_info->tainted_bytes;
+  //__afl_d_tainted_map->union_label = DFSAN_UNION_T_SIZE - label_info->union_label;
+  //char str[64] = "Shm testing Hatsuyuki Sakura\n";
+  //strncpy((char* )__afl_d_tainted_map, str, strlen(str));
+  
+}
+
+void dtaint_set_shm(dfsan_label* addr, dfsan_label label) {
+  if (unlikely(!__afl_d_tainted_map)) return;
+
+  struct offset_node* node = (struct offset_node *)dfsan_union_t_get_offset(label);
+
+  if (!(*addr))
+    __afl_d_tainted_map->tainted_bytes++;
+      
+  __afl_d_tainted_map->tainted_data[__afl_d_tainted_map->num_of_update].pos = addr;
+  __afl_d_tainted_map->tainted_data[__afl_d_tainted_map->num_of_update].len = node->len;
+
+  __afl_d_tainted_map->num_of_update++;
+
 }
