@@ -2,7 +2,6 @@
 #include "dtaint.h"
 #include "sanitizer_common/sanitizer_common.h"
 #include "types.h" 
-#include <cstdio>
 #include <cstring>
 #include <stdint.h>
 
@@ -54,9 +53,9 @@ void dtaint_set_shm(dfsan_label* addr, dfsan_label label) {
 
   struct offset_node* node = (struct offset_node *)dfsan_union_t_get_offset(label);
 
-  if (!(*addr))
+  if (*addr == 0) 
     __afl_d_tainted_map->tainted_bytes++;
-      
+  
   __afl_d_tainted_map->tainted_data[__afl_d_tainted_map->num_of_update].pos = addr;
   __afl_d_tainted_map->tainted_data[__afl_d_tainted_map->num_of_update].len = node->len;
 

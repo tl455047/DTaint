@@ -1088,7 +1088,7 @@ static void __afl_start_forkserver(void) {
     if (!child_stopped) {
 
       /* Once woken up, create a clone of our process. */
-
+      
       child_pid = fork();
       if (child_pid < 0) {
 

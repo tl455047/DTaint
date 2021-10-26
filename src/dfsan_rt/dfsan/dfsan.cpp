@@ -320,10 +320,10 @@ void __dfsan_set_label(dfsan_label label, void *addr, uptr size) {
       continue;
     
     //fprintf(stderr, "addr: %x, addr: %x\n", addr, labelp);
-    if(label && !*labelp && dfsan_check_label(&__dfsan_label_info, label)) {
+    if(label && dfsan_check_label(&__dfsan_label_info, label)) {
       dtaint_set_shm(labelp, label);
-      __dfsan_label_info.tainted_bytes += 1;
     }
+    
     *labelp = label;
   }
 }
