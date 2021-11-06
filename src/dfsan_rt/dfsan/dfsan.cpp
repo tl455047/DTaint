@@ -223,10 +223,12 @@ dfsan_label __dfsan_union(dfsan_label l1, dfsan_label l2) {
 
   if(__dfsan_label_info.last_label + 1 < DFSAN_UNION_T_SIZE &&
   dfsan_check_label(&__dfsan_label_info, l1) &&
-  dfsan_check_label(&__dfsan_label_info, l2))
+  dfsan_check_label(&__dfsan_label_info, l2)) {
+    //fprintf(stderr, "last label: %u, input label: %u, union label: %u", __dfsan_label_info.last_label, __dfsan_label_info.input_label, 
+    //__dfsan_label_info.union_label);
     label = dfsan_union_t_union(&__dfsan_label_info, l1, l2);
-
-
+  }
+  
 
   /**
    * Maybe we should check that if the union label is already in table,
@@ -319,11 +321,13 @@ void __dfsan_set_label(dfsan_label label, void *addr, uptr size) {
     if (label == *labelp)
       continue;
     
-    //fprintf(stderr, "addr: %x, addr: %x\n", addr, labelp);
-    if(label && dfsan_check_label(&__dfsan_label_info, label)) {
-      dtaint_set_shm(labelp, label);
-    }
     
+    if(label && dfsan_check_label(&__dfsan_label_info, label)) {
+      //fprintf(stderr, "addr: %p, shadow addr: %p, size: %u, label: %u\n", addr, labelp, size, DFSAN_UNION_T_SIZE - label);
+      dtaint_set_shm(labelp, label);
+      __dfsan_label_info.tainted_bytes += 1;
+    }
+
     *labelp = label;
   }
 }

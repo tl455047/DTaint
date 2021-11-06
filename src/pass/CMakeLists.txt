@@ -30,13 +30,13 @@ set (CMAKE_MODULE_LINKER_FLAGS "${CMAKE_CXX_LINK_FLAGS} -Wl,-znodelete")
 add_library(DFSanPass MODULE DataFlowSanitizer.cpp)
 target_link_libraries(DFSanPass LLVMPassConfig)
 #install (TARGETS DFSanPass DESTINATION ${TAINT_PASS_DIR})
-#Taint Pass
-add_library(TaintPass MODULE TaintPass.cc)
-target_link_libraries(TaintPass LLVMPassConfig)
-#install (TARGETS TaintPass DESTINATION ${TAINT_PASS_DIR})
+#DFSan Hook Pass
+add_library(DFSanHookPass MODULE DFSanHookPass.cc)
+target_link_libraries(DFSanHookPass LLVMPassConfig)
+#install (TARGETS DFSanHookPass DESTINATION ${TAINT_PASS_DIR})
 
 set_target_properties(DFSanPass
-                      TaintPass
+                      DFSanHookPass
     PROPERTIES
     LIBRARY_OUTPUT_DIRECTORY "${TAINT_PASS_DIR}"
 )

@@ -89,6 +89,9 @@ static void dfsan_pass() {
    */
   //cc_params[cc_par_cnt++] = "-mllvm";
   //cc_params[cc_par_cnt++] = "-taint-dfsan-event-callbacks=1";
+  cc_params[cc_par_cnt++] = "-mllvm";
+  cc_params[cc_par_cnt++] =  
+        alloc_printf("-taint-dfsan-abilist=%s/lib/share/openjpeg_abilist.txt", obj_path);
 
   cc_params[cc_par_cnt++] = "-mllvm";
   cc_params[cc_par_cnt++] = "-taint-dfsan-combine-pointer-labels-on-store=1";

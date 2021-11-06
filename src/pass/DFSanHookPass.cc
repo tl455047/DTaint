@@ -13,7 +13,7 @@ using namespace llvm;
 
 namespace {
 
-class TaintPass: public ModulePass, public InstVisitor<TaintPass> {
+class DFSanHookPass: public ModulePass, public InstVisitor<DFSanHookPass> {
     
     
     const DataLayout *TaintDataLayout;
@@ -31,12 +31,12 @@ class TaintPass: public ModulePass, public InstVisitor<TaintPass> {
     public:
         static char ID;
         
-        TaintPass(): ModulePass(ID) { 
+        DFSanHookPass(): ModulePass(ID) { 
 
         }
 
         StringRef getPassName() const override {
-            return StringRef("TaintPass");
+            return StringRef("DFSanHookPass");
         }
 
         bool doInitialization(Module &M) override;
@@ -53,8 +53,8 @@ class TaintPass: public ModulePass, public InstVisitor<TaintPass> {
 
 }
 
-char TaintPass::ID = 0;
-bool TaintPass::doInitialization(Module &M) {
+char DFSanHookPass::ID = 0;
+bool DFSanHookPass::doInitialization(Module &M) {
 
     errs() << getPassName() << " init\n";
 
@@ -86,14 +86,17 @@ bool TaintPass::doInitialization(Module &M) {
     return true;
 }
 
-bool TaintPass::runOnModule(Module &M) {
+bool DFSanHookPass::runOnModule(Module &M) {
 
     
     /**
      * Seems that object FunctionCallee will be released after doInitialization,
      * insert the function in runOnModule may be the better choice.
      */
-    GlobalVariable *Pipe_argc =
+    /**
+     * Replace argc with global variable.
+     */
+    /*GlobalVariable *Pipe_argc =
       new GlobalVariable(M, Type::getInt32Ty(M.getContext()), false,
                          GlobalValue::ExternalLinkage, ConstantInt::get(Type::getInt32Ty(M.getContext()), 10000), "__pipe_argc");
     for (Function &F : M) {
@@ -107,13 +110,13 @@ bool TaintPass::runOnModule(Module &M) {
             F.getArg(0)->replaceAllUsesWith(Argc);
         }
         
-    }
+    }*/
 
     return true;
 }
 
 
-void TaintPass::visitLoadInst(LoadInst &LI) {
+void DFSanHookPass::visitLoadInst(LoadInst &LI) {
 
     //errs() << "visit load inst \n"; 
    
@@ -130,7 +133,7 @@ void TaintPass::visitLoadInst(LoadInst &LI) {
     
 }
 
-void TaintPass::visitStoreInst(StoreInst &SI) {
+void DFSanHookPass::visitStoreInst(StoreInst &SI) {
     
     //errs() << "visit store inst \n"; 
     
@@ -144,28 +147,28 @@ void TaintPass::visitStoreInst(StoreInst &SI) {
 }
 
 
-void TaintPass::visitBinaryOperator(BinaryOperator &BO) {
+void DFSanHookPass::visitBinaryOperator(BinaryOperator &BO) {
 
 }
 
-void TaintPass::visitMemSetInst(MemSetInst &I) {
+void DFSanHookPass::visitMemSetInst(MemSetInst &I) {
     //errs() << "visit memset inst \n";
 }
 
-void TaintPass::visitCmpInst(CmpInst &CI) {
+void DFSanHookPass::visitCmpInst(CmpInst &CI) {
     //errs() << "visit cmp inst \n"; 
    
 }
 
-void TaintPass::visitCallBase(CallBase &CB) {
+void DFSanHookPass::visitCallBase(CallBase &CB) {
 }
 
-static RegisterPass<TaintPass> X("taint", "TaintPass", false, false);
+static RegisterPass<DFSanHookPass> X("DFSan hook", "DFSanHookPass", false, false);
 
-static void registerTaint(const PassManagerBuilder &,
+static void registerDFSanHook(const PassManagerBuilder &,
                                  legacy::PassManagerBase &PM) {
 
-  PM.add(new TaintPass());
+  PM.add(new DFSanHookPass());
 }
 
 /**
@@ -181,8 +184,8 @@ static void registerTaint(const PassManagerBuilder &,
  */
 static RegisterStandardPasses
     RegisterTaint(PassManagerBuilder::EP_OptimizerLast,
-                   registerTaint);
+                   registerDFSanHook);
 
 static RegisterStandardPasses
     RegisterTaint0(PassManagerBuilder::EP_EnabledOnOptLevel0,
-                   registerTaint);
+                   registerDFSanHook);

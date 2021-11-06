@@ -12,8 +12,6 @@ int main(int argc, char** argv)
     FILE *f;
 	int size;
 
-    fprintf(stderr, "argc: %d\n", argc);
-
 	f = fopen ("test.txt", "r");
 	  
     while (1) {
@@ -36,7 +34,7 @@ int main(int argc, char** argv)
         src[i] = temp;
     }
     for(int i = 0; i < MAXSIZE; i++) {
-        memset(dst, src[i], 1);
+        memset(dst + i, src[i], 1);
     }
     return 0;
 }

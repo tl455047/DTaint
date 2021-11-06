@@ -8,7 +8,7 @@
 
 #define DFSAN_UNION_T_OFFSET_LIST_SIZE 16
 #define DFSAN_UNION_T_SIZE (1 << DFSAN_UNION_T_OFFSET_LIST_SIZE)  
-#define DFSAN_UNION_T_MAXIMUM_NODE_NUM (1 << 8)
+#define DFSAN_UNION_T_MAXIMUM_NODE_NUM (1 << 12)
 struct dfsan_label_info {
   dfsan_label last_label;
   dfsan_label union_label;

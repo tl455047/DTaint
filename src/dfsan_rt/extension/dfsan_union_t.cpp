@@ -89,7 +89,7 @@ static struct offset_node* union_t_offset_union(dfsan_label l1, dfsan_label l2, 
   struct tainted *t1, *t2, *temp, *new_tainted;
   struct offset_node* new_node;
   u32 size, size1, size2;
-
+  s32 overlapped, taint_end, tail_end, total_len = 0, num_of_node = 1;
   t1 = offset_table(l1);
   t2 = offset_table(l2);
   // Use table[DFSAN_UNION_T_SIZE] as temp.
@@ -98,81 +98,88 @@ static struct offset_node* union_t_offset_union(dfsan_label l1, dfsan_label l2, 
   size1 = union_table()[l1].num;
   size2 = union_table()[l2].num;
 
-  // combine two list
-  u32 i = 0, j = 0, k = 0;
-  while(1) {
-    
-    if(i >= size1) {
-      
-      while(j < size2) {
-        temp[k++] = t2[j++];
-      } 
-      break;
-    }
-    else if(j >= size2) {
-      
-      while(i < size1) {
-        temp[k++] = t1[i++];
-      } 
-      break; 
-    }
-
-    if(t1[i].pos < t2[j].pos) { 
-      temp[k] = t1[i++];
-    }
-    else {
-      temp[k] = t2[j++];
-    }
-
-    k++;
-    
-  }
-  // whether it is new label, copy the offset to new label address
-  new_tainted = offset_table(new_label); 
-
-  // handle overlapped
-  i = 0, j = 0;
-  s32 overlapped, taint_end, tail_end, total_len = 0, num_of_node = 1;
-
-  new_tainted[j] = temp[i++];
-  while(1) {
-    
-    if(i >= k)
-      break;
-
-    tail_end = temp[i].pos + temp[i].len - 1;
-    taint_end = new_tainted[j].pos + new_tainted[j].len - 1;
-    overlapped = (temp[i].pos - taint_end) * (tail_end - new_tainted[j].pos);
-
-    if(overlapped < 0) {
-       // overlapped
-      if(taint_end < tail_end) 
-        new_tainted[j].len += tail_end - taint_end;
-      
-      i++;
-    }
-    else if(taint_end + 1 == temp[i].pos) {
-      // can be connected
-      new_tainted[j].len += temp[i].len;
-
-      i++;
-    }
-    else {
-      total_len += temp[i].len;
-      num_of_node += 1;
-      new_tainted[++j] = temp[i++];
-    }
-  }
+  if (size1 + size2 < DFSAN_UNION_T_MAXIMUM_NODE_NUM) {
   
- 
-  total_len += new_tainted[j].len;
-  
+    // combine two list
+    u32 i = 0, j = 0, k = 0;
+    while(1) {
+      
+      if(i >= size1) {
+        
+        while(j < size2) {
+          temp[k++] = t2[j++];
+        } 
+        break;
+      }
+      else if(j >= size2) {
+        
+        while(i < size1) {
+          temp[k++] = t1[i++];
+        } 
+        break; 
+      }
+
+      if(t1[i].pos < t2[j].pos) { 
+        temp[k] = t1[i++];
+      }
+      else {
+        temp[k] = t2[j++];
+      }
+
+      k++;
+      
+      
+    }
+    // whether it is new label, copy the offset to new label address
+    new_tainted = offset_table(new_label); 
+
+    
+    // handle overlapped
+    i = 0, j = 0;
+   
+
+    new_tainted[j] = temp[i++];
+    while(1) {
+      
+      if(i >= k)
+        break;
+
+      tail_end = temp[i].pos + temp[i].len - 1;
+      taint_end = new_tainted[j].pos + new_tainted[j].len - 1;
+      overlapped = (temp[i].pos - taint_end) * (tail_end - new_tainted[j].pos);
+
+      if(overlapped < 0) {
+        // overlapped
+        if(taint_end < tail_end) 
+          new_tainted[j].len += tail_end - taint_end;
+        
+        i++;
+      }
+      else if(taint_end + 1 == temp[i].pos) {
+        // can be connected
+        new_tainted[j].len += temp[i].len;
+
+        i++;
+      }
+      else {
+        total_len += temp[i].len;
+        num_of_node += 1;
+        new_tainted[++j] = temp[i++];
+      }
+    }
+    
+
+    total_len += new_tainted[j].len;
+
+  }
+
   new_node = &(union_table()[new_label]);
 
   new_node->len = total_len;
   new_node->num = num_of_node;
   new_node->tainted = new_tainted;
   new_node->next = NULL;
+
   //union_t_output_tainted(new_node, 2);
   return new_node;
 }
@@ -223,7 +230,7 @@ void union_t_offset_list_insert(struct offset_node *node, dfsan_label label) {
 
 }
 
-int union_t_offset_list_search(struct offset_node* new_node, u32 *new_label) {
+int union_t_offset_list_search(struct offset_node* new_node, dfsan_label *new_label) {
   struct offset_node *node;
   u32 offset_idx, size = new_node->len;
   //get nearest offset size from len.
@@ -292,6 +299,7 @@ dfsan_label dfsan_union_t_union(dfsan_label_info* label_info, dfsan_label l1, df
   dfsan_label new_label = 0;
   
   union_node = union_t_offset_union(l1, l2, label_info->union_label - 1);
+
   // Check if the offset is already exist.
   if(!union_t_offset_is_exist(label_info, union_node, &new_label)) {
     label_info->union_label -= 1;
@@ -300,7 +308,6 @@ dfsan_label dfsan_union_t_union(dfsan_label_info* label_info, dfsan_label l1, df
     //insert into offset list
     union_t_offset_list_insert(union_node, new_label);
   }
-
   //fprintf(stderr, "\ndfsan_uniont_t_list_union, label1: %u, label2: %u, last label: %u, union label: %u, new label: %u\n"
   //, l1, l2, label_info->last_label, label_info->union_label, new_label);
   
