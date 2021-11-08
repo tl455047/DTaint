@@ -2,39 +2,52 @@
 #include <stdio.h>
 #include <fcntl.h>
 #include <unistd.h>
+#include <stdlib.h>
+#define MAXSIZE 64
 
-#define MAXSIZE 256
 
 char dst[MAXSIZE];
 int main(int argc, char** argv)
 {  
-    char src[MAXSIZE] = {1};
+    //char src[MAXSIZE] = {1};
+    int* src;
     FILE *f;
-	int size;
+	int size, len;
+    char buf[16];
+
+    src = malloc(MAXSIZE);
+    
+    memset(src, 0, MAXSIZE);
 
 	f = fopen ("test.txt", "r");
 	  
     while (1) {
-		size = fread (src, 1, sizeof(src), f);
-		if (size <= 0) 
+		len = fread (src, 1, 1, f);
+		if (len <= 0) 
 			break;
 	}
 
     fclose(f);
 
-    int temp;
+    int temp = 0, count = 0;
 
-    for(int i = 0; i < MAXSIZE; i++) {
-        temp = 0;
-        temp += src[0];
-        if(i > 1)
-            temp += src[i - 1];
-        if(i < MAXSIZE - 1)
-            temp += src[i+1];
-        src[i] = temp;
+    for(int i = 0; i < MAXSIZE; i++, temp++) {
+        src[i] = i;
+        
+        count += src[i];
     }
-    for(int i = 0; i < MAXSIZE; i++) {
-        memset(dst + i, src[i], 1);
-    }
+    
+    for(int i = 0; i < MAXSIZE; i++, temp++) {
+        src[i] += 9487;
+        fprintf(stderr, "%d\n", src[i]);
+    }fprintf(stderr, "\n");
+    
+    memcpy(dst, src, MAXSIZE);
+
+    memmove(dst, dst + MAXSIZE/2 , MAXSIZE/4);
+        
+    fprintf(stderr, "%d\n", count);
+    free(src);
+
     return 0;
 }

@@ -61,7 +61,15 @@ static void taint_pass() {
   cc_params[cc_par_cnt++] = "-Xclang";
   cc_params[cc_par_cnt++] = "-load";
   cc_params[cc_par_cnt++] = "-Xclang";
-  cc_params[cc_par_cnt++] = alloc_printf("%s/pass/libTaintPass.so", obj_path);
+  cc_params[cc_par_cnt++] = alloc_printf("%s/pass/libDFSanHookPass.so", obj_path);
+
+  cc_params[cc_par_cnt++] = "-mllvm";
+  cc_params[cc_par_cnt++] = "-memlog-hook-inst=1";
+
+  cc_params[cc_par_cnt++] = "-mllvm";
+  cc_params[cc_par_cnt++] = 
+        alloc_printf("-memlog-hook-abilist=%s/lib/share/hook_abilist.txt", obj_path);
+
 }
 
 static void dfsan_pass() {
@@ -95,7 +103,7 @@ static void dfsan_pass() {
 
   cc_params[cc_par_cnt++] = "-mllvm";
   cc_params[cc_par_cnt++] = "-taint-dfsan-combine-pointer-labels-on-store=1";
-  
+
 }
 
 static void taint_runtime() {
@@ -265,10 +273,10 @@ static void edit_params(u32 argc, char** argv) {
     cc_params[cc_par_cnt++] = "-funroll-loops";
   }
   
-  //taint_pass();
-  dfsan_pass();
+  taint_pass();
+  //dfsan_pass();
 
-  //taint_runtime();
+  taint_runtime();
   dfsan_runtime();
   afl_runtime();
   /**

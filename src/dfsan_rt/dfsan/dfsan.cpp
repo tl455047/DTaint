@@ -324,7 +324,7 @@ void __dfsan_set_label(dfsan_label label, void *addr, uptr size) {
     
     if(label && dfsan_check_label(&__dfsan_label_info, label)) {
       //fprintf(stderr, "addr: %p, shadow addr: %p, size: %u, label: %u\n", addr, labelp, size, DFSAN_UNION_T_SIZE - label);
-      dtaint_set_shm(labelp, label);
+      //dtaint_set_shm(labelp, label);
       __dfsan_label_info.tainted_bytes += 1;
     }
 
@@ -520,7 +520,7 @@ static void dfsan_fini() {
            "./dump.txt");
     dfsan_dump_labels(fd);
     CloseFile(fd);*/
-  dtaint_dump(&__dfsan_label_info);
+  //dtaint_dump(&__dfsan_label_info);
   Printf("DFSan fini\n");
 }
 

@@ -179,6 +179,11 @@ static cl::opt<bool> ClEventCallbacks(
     cl::desc("Insert calls to __dfsan_*_callback functions on data events."),
     cl::Hidden, cl::init(false));
 
+static cl::opt<bool> ClHookInst(
+    "taint-dfsan-hook-inst",
+    cl::desc("Insert calls to hook critical memory instructions, calls."),
+    cl::Hidden, cl::init(false));
+
 static StringRef GetGlobalTypeString(const GlobalValue &G) {
   // Types of GlobalVariables are always pointer types.
   Type *GType = G.getValueType();
@@ -376,6 +381,16 @@ class DataFlowSanitizer : public ModulePass {
   FunctionCallee DFSanMemTransferCallbackFn;
   FunctionCallee DFSanCmpCallbackFn;
 
+  // FunctionType and FunctionCallee for hook instructions.
+  // This is splitline-------------------------------------
+  FunctionType *DFSanHookDebugFnTy;
+  FunctionType *DFSanHookMallocFnTy;
+  FunctionType *DFSanHookFreeFnTy;
+
+  FunctionCallee DFSanHookDebugFn;
+  FunctionCallee DFSanHookMallocFn;
+  FunctionCallee DFSanHookFreeFn;
+  // This is splitline-------------------------------------
   MDNode *ColdCallWeights;
   DFSanABIList ABIList;
   DenseMap<Value *, Function *> UnwrappedFnMap;
@@ -626,7 +641,15 @@ bool DataFlowSanitizer::doInitialization(Module &M) {
   Type *DFSanLoadCallbackArgs[3] = {ShadowTy, IntptrTy, Type::getInt64Ty(*Ctx)};
   DFSanLoadCallbackFnTy = 
       FunctionType::get(Type::getVoidTy(*Ctx), DFSanLoadCallbackArgs, /*isVarArg=*/false);
-
+  // FunctionType and FunctionCallee for hook instructions.
+  // This is splitline-------------------------------------
+  DFSanHookDebugFnTy = 
+      FunctionType::get(Type::getVoidTy(*Ctx), {ShadowTy, SizeTy}, false);
+  DFSanHookMallocFnTy = 
+      FunctionType::get(Type::getVoidTy(*Ctx), {ShadowTy, SizeTy}, false);
+  DFSanHookFreeFnTy = 
+      FunctionType::get(Type::getVoidTy(*Ctx), {ShadowTy, Type::getInt64PtrTy(*Ctx)}, false);
+  // This is splitline-------------------------------------
   if (GetArgTLSPtr) {
     Type *ArgTLSTy = ArrayType::get(ShadowTy, 64);
     ArgTLS = nullptr;
@@ -807,6 +830,13 @@ void DataFlowSanitizer::initializeRuntimeFunctions(Module &M) {
       Mod->getOrInsertFunction("__dfsan_nonzero_label", DFSanNonzeroLabelFnTy);
   DFSanVarargWrapperFn = Mod->getOrInsertFunction("__dfsan_vararg_wrapper",
                                                   DFSanVarargWrapperFnTy);
+
+  // FunctionType and FunctionCallee for hook instructions.
+  // This is splitline-------------------------------------
+  DFSanHookDebugFn = Mod->getOrInsertFunction("__hook_debug", DFSanHookDebugFnTy);
+  DFSanHookMallocFn = Mod->getOrInsertFunction("__hook_malloc", DFSanHookMallocFnTy);
+  DFSanHookFreeFn = Mod->getOrInsertFunction("__hook_free", DFSanHookFreeFnTy);
+  // This is splitline-------------------------------------
 }
 
 // Initializes event callback functions and declare them in the module
@@ -1636,12 +1666,33 @@ void DFSanVisitor::visitCallBase(CallBase &CB) {
     return;
   }
 
+  IRBuilder<> IRB(&CB);
+
+  /**
+   * Let's hook Call instructions. Is this correct insert position?
+   * 
+   */
+  // FunctionType and FunctionCallee for hook instructions.
+  // This is splitline-------------------------------------
+  if(ClHookInst) {
+    if(F && F->getName() == "dfsw$malloc") {
+      errs()<<"hook "<<F->getName()<<"\n";
+      Value *Arg = CB.getArgOperand(0);
+      IRB.CreateCall(DFSF.DFS.DFSanHookMallocFn, {DFSF.getShadow(Arg), Arg});
+    }
+    else if(F && F->getName() == "dfsw$free") {
+      errs()<<"hook "<<F->getName()<<"\n";
+      Value *Arg = CB.getArgOperand(0);
+      IRB.CreateCall(DFSF.DFS.DFSanHookFreeFn, {DFSF.getShadow(Arg), Arg});
+    }
+  }
+  // This is splitline-------------------------------------
   // Calls to this function are synthesized in wrappers, and we shouldn't
   // instrument them.
   if (F == DFSF.DFS.DFSanVarargWrapperFn.getCallee()->stripPointerCasts())
     return;
 
-  IRBuilder<> IRB(&CB);
+  //IRBuilder<> IRB(&CB);
 
   DenseMap<Value *, Function *>::iterator i =
       DFSF.DFS.UnwrappedFnMap.find(CB.getCalledOperand());
