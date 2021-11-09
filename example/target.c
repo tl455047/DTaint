@@ -3,19 +3,24 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <stdlib.h>
-#define MAXSIZE 64
+#define MAXSIZE 8
 
 
+struct A{
+    int pos;
+    int len;
+};
 char dst[MAXSIZE];
 int main(int argc, char** argv)
 {  
     //char src[MAXSIZE] = {1};
-    int* src;
+    int src[MAXSIZE][MAXSIZE];
     FILE *f;
 	int size, len;
     char buf[16];
 
-    src = malloc(MAXSIZE);
+    memset(src[0], 0, MAXSIZE);
+    /*src = malloc(MAXSIZE);
     
     memset(src, 0, MAXSIZE);
 
@@ -27,27 +32,28 @@ int main(int argc, char** argv)
 			break;
 	}
 
-    fclose(f);
+    fclose(f);*/
 
     int temp = 0, count = 0;
 
-    for(int i = 0; i < MAXSIZE; i++, temp++) {
-        src[i] = i;
-        
-        count += src[i];
+    for(int i = 0; i < MAXSIZE; i++) {
+        for(int j = 0; j < MAXSIZE; j++) {
+            src[i][j] = 9487 + i;
+            count += src[i][j];
+        }
     }
-    
-    for(int i = 0; i < MAXSIZE; i++, temp++) {
-        src[i] += 9487;
-        fprintf(stderr, "%d\n", src[i]);
-    }fprintf(stderr, "\n");
     
     memcpy(dst, src, MAXSIZE);
 
     memmove(dst, dst + MAXSIZE/2 , MAXSIZE/4);
-        
+
+    struct A st;
+    st.len = 10;
+    st.pos = 1;
+
+    count += st.len + st.pos;    
     fprintf(stderr, "%d\n", count);
-    free(src);
+    //free(src);
 
     return 0;
 }

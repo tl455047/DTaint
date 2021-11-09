@@ -84,20 +84,18 @@ class DFSanHookPass: public ModulePass, public InstVisitor<DFSanHookPass> {
     
     HookABIList __HookABIList; 
 
-    Type *LabelTy;
     Type *Int64PtrTy;
-    Type *SizeTy;
+    Type *Int8Ty;
     Type *Int32Ty;
-
+    Type *SizeTy;
+    
     FunctionType *DebugFuncTy;
     FunctionType *MemlogHook1FuncTy;
     FunctionType *MemlogHook2FuncTy;
-    FunctionType *MemlogHook38FuncTy;
+    FunctionType *MemlogHook3FuncTy;
     FunctionType *MemlogHook4FuncTy;
-    FunctionType *MemlogHook56FuncTy;
-    //FunctionType *MemlogHook6FuncTy;
-    FunctionType *MemlogHook7FuncTy;
-    FunctionType *MemlogHook8FuncTy;
+    FunctionType *MemlogHook5FuncTy;
+    FunctionType *MemlogVarArgHook1FuncTy;
 
     FunctionCallee DebugFunc;
     FunctionCallee MemlogHook1Func;
@@ -105,9 +103,7 @@ class DFSanHookPass: public ModulePass, public InstVisitor<DFSanHookPass> {
     FunctionCallee MemlogHook3Func;
     FunctionCallee MemlogHook4Func;
     FunctionCallee MemlogHook5Func;
-    FunctionCallee MemlogHook6Func;
-    FunctionCallee MemlogHook7Func;
-    FunctionCallee MemlogHook8Func;
+    FunctionCallee MemlogVarArgHook1Func;
 
     public:
         static char ID;
@@ -146,6 +142,8 @@ class DFSanHookPass: public ModulePass, public InstVisitor<DFSanHookPass> {
         void visitInsertValueInst(InsertValueInst &I);
         void visitShuffleVectorInst(ShuffleVectorInst &I);
 
+        void visitAtomicCmpXchgInst(AtomicCmpXchgInst &I);
+        void visitAtomicRMWInst(AtomicRMWInst &I);
         //void visitAtomicRMWInst(AtomicRMWInst &I);
         //void visitSelectInst(SelectInst &I);
         //void visitPHINode(PHINode &PN);
@@ -173,20 +171,20 @@ bool DFSanHookPass::doInitialization(Module &M) {
 
     /*Type *DFSanSetFuncArgTy[3] = {Int32Ty, Int8PtrTy, SizeTy};
     DFSanSetFuncTy = FunctionType::get(VoidTy, DFSanSetFuncArgTy, false);*/
-    LabelTy = Type::getInt32Ty(M.getContext());
     Int64PtrTy = Type::getInt64PtrTy(M.getContext());
-    SizeTy = Type::getInt64Ty(M.getContext());
+    Int8Ty = Type::getInt8Ty(M.getContext());
     Int32Ty = Type::getInt32Ty(M.getContext());
+    SizeTy = Type::getInt64Ty(M.getContext());
+    
     Type *VoidTy = Type::getVoidTy(M.getContext());
 
-    DebugFuncTy = FunctionType::get(VoidTy, {LabelTy, SizeTy}, false);
-    MemlogHook1FuncTy = FunctionType::get(VoidTy, {SizeTy}, false);
-    MemlogHook2FuncTy = FunctionType::get(VoidTy, {Int64PtrTy}, false);
-    MemlogHook38FuncTy = FunctionType::get(VoidTy, {Int64PtrTy, SizeTy}, false);
+    DebugFuncTy = FunctionType::get(VoidTy, {SizeTy, SizeTy}, false);
+    MemlogHook1FuncTy = FunctionType::get(VoidTy, {Int64PtrTy, Int32Ty, Int32Ty}, false);
+    MemlogHook2FuncTy = FunctionType::get(VoidTy, {SizeTy, Int32Ty, Int64PtrTy, Int32Ty}, false);
+    MemlogHook3FuncTy = FunctionType::get(VoidTy, {Int64PtrTy, Int32Ty, SizeTy}, false);
     MemlogHook4FuncTy = FunctionType::get(VoidTy, {Int64PtrTy, Int64PtrTy, SizeTy}, false);
-    MemlogHook56FuncTy = FunctionType::get(VoidTy, {Int64PtrTy, SizeTy, SizeTy}, false);
-    //MemlogHook6FuncTy = FunctionType::get(VoidTy, {Int64PtrTy, SizeTy, SizeTy}, false);
-    MemlogHook7FuncTy = FunctionType::get(VoidTy, {SizeTy, SizeTy}, false);
+    MemlogHook5FuncTy = FunctionType::get(VoidTy, {Int32Ty, SizeTy}, false);
+    MemlogVarArgHook1FuncTy = FunctionType::get(VoidTy, {Int64PtrTy, Int32Ty, Int32Ty, Int32Ty}, true);
     //Builder = std::make_unique<IRBuilder<>>(M.getContext());
     return true;
 }
@@ -201,12 +199,10 @@ bool DFSanHookPass::runOnModule(Module &M) {
     DebugFunc = M.getOrInsertFunction("__hook_debug", DebugFuncTy);
     MemlogHook1Func = M.getOrInsertFunction("__memlog_hook1", MemlogHook1FuncTy);
     MemlogHook2Func = M.getOrInsertFunction("__memlog_hook2", MemlogHook2FuncTy);
-    MemlogHook3Func = M.getOrInsertFunction("__memlog_hook3", MemlogHook38FuncTy);
+    MemlogHook3Func = M.getOrInsertFunction("__memlog_hook3", MemlogHook3FuncTy);
     MemlogHook4Func = M.getOrInsertFunction("__memlog_hook4", MemlogHook4FuncTy);
-    MemlogHook5Func = M.getOrInsertFunction("__memlog_hook5", MemlogHook56FuncTy);
-    MemlogHook6Func = M.getOrInsertFunction("__memlog_hook6", MemlogHook56FuncTy);
-    MemlogHook7Func = M.getOrInsertFunction("__memlog_hook7", MemlogHook7FuncTy);
-    MemlogHook8Func = M.getOrInsertFunction("__memlog_hook8", MemlogHook38FuncTy);
+    MemlogHook5Func = M.getOrInsertFunction("__memlog_hook5", MemlogHook5FuncTy);
+    MemlogVarArgHook1Func = M.getOrInsertFunction("__memlog_vararg_hook1", MemlogVarArgHook1FuncTy);
     /**
      * Replace argc with global variable.
      */
@@ -226,11 +222,8 @@ bool DFSanHookPass::runOnModule(Module &M) {
         
     }*/
     for (Function &F : M) {
-    
-      
-           
+   
         visit(F);   
-        
         
     }
 
@@ -243,34 +236,40 @@ bool DFSanHookPass::shouldHook(const Function *F) {
 }
 
 void DFSanHookPass::visitLoadInst(LoadInst &LI) {
+    
+    if (ClHookInst) { 
+        
+        size_t SourceType = TaintDataLayout->getPointerTypeSize(LI.getPointerOperandType());
+        size_t ResultType = TaintDataLayout->getTypeStoreSize(LI.getType());
+        IRBuilder <> IRB(&LI);
+        IRB.CreateCall(MemlogHook1Func, {LI.getPointerOperand(), 
+            ConstantInt::get(Int32Ty, SourceType),
+            ConstantInt::get(Int32Ty, ResultType)});
 
-    size_t Bytes = TaintDataLayout->getTypeStoreSize(LI.getType());
-    // check access bytes
-    if (!ClHookInst || Bytes == 0) 
-        return;
-    
-    IRBuilder <> IRB(&LI);
-    IRB.CreateCall(MemlogHook3Func, {LI.getPointerOperand(), 
-      ConstantInt::get(SizeTy, Bytes)});
-    
+    }
+
 }
 
 void DFSanHookPass::visitStoreInst(StoreInst &SI) {
     
-    size_t Bytes = TaintDataLayout->getTypeStoreSize(SI.getValueOperand()->getType());
-   
-    if (!ClHookInst) return;
-    
-    IRBuilder <> IRB(&SI);
-    IRB.CreateCall(MemlogHook6Func, {SI.getPointerOperand(), 
-      SI.getValueOperand(), ConstantInt::get(SizeTy, Bytes)});
-  
+    if (ClHookInst) {
+        
+        size_t SourceType = TaintDataLayout->getTypeStoreSize(SI.getValueOperand()->getType());
+        size_t ResultType = TaintDataLayout->getPointerTypeSize(SI.getPointerOperandType());
+        IRBuilder <> IRB(&SI);
+        IRB.CreateCall(MemlogHook2Func, { SI.getValueOperand(), 
+            ConstantInt::get(Int32Ty, SourceType),
+            SI.getPointerOperand(),
+            ConstantInt::get(Int32Ty, ResultType)});
+
+    }
+
 }
 
 void DFSanHookPass::visitCallBase(CallBase &CB) {
     auto F = CB.getCalledFunction();
     
-    if(ClHookInst && F && !F->isIntrinsic() && shouldHook(F)) {
+    if (ClHookInst && F && !F->isIntrinsic() && shouldHook(F)) {
         
         errs() << "visit Call Base inst "<< F->getName() << "\n"; 
         //if(F->getName() == "malloc") {
@@ -293,113 +292,189 @@ void DFSanHookPass::visitCallBase(CallBase &CB) {
 void DFSanHookPass::visitInvokeInst(InvokeInst &I) {
     errs() << "visitInvokeInst\n";
 
-    if (!ClHookInst) return;
+    if (ClHookInst) {
+
+    }
 
 }
 
 void DFSanHookPass::visitGetElementPtrInst(GetElementPtrInst &I) {
     
-    size_t Bytes = TaintDataLayout->getTypeStoreSize(I.getSourceElementType());
     
-    if (!ClHookInst) return;
-    
-    // get index
-    Value *Idx;
-    for (User::op_iterator it = I.idx_begin(); it != I.idx_end(); it++) {
-        Idx = *it;
+    if (ClHookInst) {
+        
+        size_t SourceType = TaintDataLayout->getTypeStoreSize(I.getSourceElementType());
+        size_t ResultType = TaintDataLayout->getTypeStoreSize(I.getResultElementType());
+
+        std::vector<Value *> ArgArray;  
+        ArgArray.push_back(I.getPointerOperand());
+        ArgArray.push_back(ConstantInt::get(Int32Ty, SourceType));
+        ArgArray.push_back(ConstantInt::get(Int32Ty, ResultType));
+        // need to pass type and idx both
+        ArgArray.push_back(ConstantInt::get(Int32Ty, I.getNumIndices()));
+        // get idx and type
+        for (User::op_iterator it = I.idx_begin(); it != I.idx_end(); it++) {
+            ArgArray.push_back(ConstantInt::get(Int32Ty, 
+                TaintDataLayout->getTypeStoreSize((*it)->getType())));
+            ArgArray.push_back(*it); 
+        }
+
+        IRBuilder <> IRB(&I);
+        IRB.CreateCall(MemlogVarArgHook1Func, ArgArray);    
+       
     }
 
-    IRBuilder <> IRB(&I);
-    IRB.CreateCall(MemlogHook5Func, {I.getPointerOperand(), Idx, 
-      ConstantInt::get(SizeTy, Bytes)});
-    
 }
 
 void DFSanHookPass::visitMemSetInst(MemSetInst &I) {
    
-    if (!ClHookInst) return;
-    IRBuilder <> IRB(&I);
-    IRB.CreateCall(MemlogHook6Func, {I.getArgOperand(0),
-      I.getArgOperand(1), I.getArgOperand(2)});
+    if (ClHookInst) {
+
+        IRBuilder <> IRB(&I);
+        IRB.CreateCall(MemlogHook3Func, {I.getArgOperand(0),
+            I.getArgOperand(1), I.getArgOperand(2)});
+    
+    }
 
 }
 
 void DFSanHookPass::visitMemCpyInst(MemCpyInst &I) {
     
-    if (!ClHookInst) return;
-    IRBuilder <> IRB(&I);
-    IRB.CreateCall(MemlogHook4Func, {I.getArgOperand(0),
-      I.getArgOperand(1), I.getArgOperand(2)});
+    if (ClHookInst) {
+        
+        IRBuilder <> IRB(&I);
+        IRB.CreateCall(MemlogHook4Func, {I.getArgOperand(0),
+            I.getArgOperand(1), I.getArgOperand(2)});
+
+    }
 
 }
 
 void DFSanHookPass::visitMemCpyInlineInst(MemCpyInlineInst &I) {
 
-    if (!ClHookInst) return;
-    IRBuilder <> IRB(&I);
-    IRB.CreateCall(MemlogHook4Func, {I.getArgOperand(0),
-      I.getArgOperand(1), I.getArgOperand(2)}); 
+    if (ClHookInst) {
+    
+        IRBuilder <> IRB(&I);
+        IRB.CreateCall(MemlogHook4Func, {I.getArgOperand(0),
+            I.getArgOperand(1), I.getArgOperand(2)}); 
+        
+    }
 
 }
 
 void DFSanHookPass::visitMemMoveInst(MemMoveInst &I) {
     
-    if (!ClHookInst) return;
-    IRBuilder <> IRB(&I);
-    IRB.CreateCall(MemlogHook4Func, {I.getArgOperand(0),
-      I.getArgOperand(1), I.getArgOperand(2)});
+    if (ClHookInst) {
+    
+        IRBuilder <> IRB(&I);
+        IRB.CreateCall(MemlogHook4Func, {I.getArgOperand(0),
+            I.getArgOperand(1), I.getArgOperand(2)});
+        
+    }
 
 }
 
-// Use for vector 
-
+// C++ allocator
 void DFSanHookPass::visitAllocaInst(AllocaInst &I) {
-    errs() << "visitAllocaInst\n"; 
+    
+    if (ClHookInst) {
 
-    if (!ClHookInst) return;
+        size_t AllocatedType = TaintDataLayout->getTypeAllocSize(I.getAllocatedType());
 
-    size_t Bytes = TaintDataLayout->getTypeStoreSize(I.getAllocatedType());
+        IRBuilder <> IRB(&I);
+        IRB.CreateCall(MemlogHook5Func, {ConstantInt::get(Int32Ty, AllocatedType),
+            I.getArraySize()});
+        
+    }
 
-    //IRBuilder <> IRB(&I);
-    //IRB.CreateCall(MemlogHook7Func, {ConstantInt::get(SizeTy, Bytes),
-    //  I.getArraySize()});
 }
 
 void DFSanHookPass::visitExtractElementInst(ExtractElementInst &I) {
-    errs() << "visitExtractElementInst\n";  
+    //errs() << "visitExtractElementInst\n";  
 
-    if (!ClHookInst) return;
-    
-    //IRBuilder <> IRB(&I);
-    //IRB.CreateCall(MemlogHook8Func, {I.getVectorOperand(),
-    //  I.getIndexOperand()});
+    /*if (ClHookInst) {
+        
+        size_t VectorType = TaintDataLayout->getPointerTypeSize(I.getVectorOperandType());
+        IRBuilder <> IRB(&I);
+        IRB.CreateCall(MemlogHook5Func, {I.getVectorOperand(),
+        I.getIndexOperand(), ConstantInt::get(SizeTy, VectorType)});
+
+    }*/
+
 }
 
 void DFSanHookPass::visitInsertElementInst(InsertElementInst &I) {
-    errs() << "visitInsertElementInst\n"; 
 
-    if (!ClHookInst) return;
+    /*if (ClHookInst) {
+        
+        size_t VectorType = TaintDataLayout->getTypeStoreSize(
+            I.getType()->getElementType());
+        IRBuilder <> IRB(&I);
+        IRB.CreateCall(MemlogHook1Func, {ConstantInt::get(SizeTy, VectorType)});
+        
+    }*/
 
 }
 
 void DFSanHookPass::visitExtractValueInst(ExtractValueInst &I) {
-    errs() << "visitExtractValueInst\n"; 
+    
+    /*errs() << "visitExtractValueInst\n"; 
 
-    if (!ClHookInst) return;
+    if (ClHookInst) {
+
+        errs() << I.getNumIndices() << " " << I.getAggregateOperand() << "\n";
+        
+        Value *Idx;
+        for(ExtractValueInst::idx_iterator it 
+            = I.idx_begin(); it != I.idx_end(); it++) {
+            //Idx = ConstantInt::get(SizeTy, *it);
+        }
+
+        IRBuilder <> IRB(&I);
+        IRB.CreateCall(DebugFunc, {I.getAggregateOperand(), I.getAggregateOperand()});
+    
+    }*/
 
 }
 
 void DFSanHookPass::visitInsertValueInst(InsertValueInst &I) {
-    errs() << "visitInsertValueInst\n"; 
+    /*errs() << "visitInsertValueInst " << I.getFunction()->getName() << "\n"; 
 
-    if (!ClHookInst) return;
+    if (ClHookInst) {
+
+        std::vector<Value *> ArgArray;
+        ArgArray.push_back(I.getInsertedValueOperand());
+        // value type
+        ArgArray.push_back(ConstantInt::get(Int32Ty, TaintDataLayout->
+            getTypeStoreSize(I.getInsertedValueOperand()->getType())));
+        ArgArray.push_back(I.getAggregateOperand());
+        // aggregate type
+        ArgArray.push_back(ConstantInt::get(Int32Ty, TaintDataLayout->
+            getTypeStoreSize(I.getAggregateOperand()->getType())));
+        Value *Idx;
+        for(ExtractValueInst::idx_iterator it 
+            = I.idx_begin(); it != I.idx_end(); it++) {
+            Idx = ConstantInt::get(Int32Ty, *it);
+        }
+
+        IRBuilder <> IRB(&I);
+        IRB.CreateCall(DebugFunc, ArgArray);
+
+    }*/
 
 }
 
 void DFSanHookPass::visitShuffleVectorInst(ShuffleVectorInst &I) {
-    errs() << "visitShuffleVectorInst\n";
+    //errs() << "visitShuffleVectorInst\n";
 }
 
+void DFSanHookPass::visitAtomicCmpXchgInst(AtomicCmpXchgInst &I) {
+    //errs() << "visitAtomicCmpXchgInst\n"; 
+}
+
+void DFSanHookPass::visitAtomicRMWInst(AtomicRMWInst &I) {
+    //errs() << "visitAtomicRMWInst\n"; 
+}
 
 static RegisterPass<DFSanHookPass> X("DFSan hook", "DFSanHookPass", false, false);
 
