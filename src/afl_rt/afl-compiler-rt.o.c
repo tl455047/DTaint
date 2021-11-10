@@ -562,8 +562,6 @@ static void __afl_map_shm(void) {
     //__afl_cmp_map = shm_base;
     __afl_d_tainted_map = shm_base;
 
-    fprintf(stderr, "dtaint mmaping: %x\n", __afl_d_tainted_map);
-
     char str[64] = "testing for merge shadow and shm.\n";
     strncpy((char *)__afl_d_tainted_map, str, strlen(str));
 

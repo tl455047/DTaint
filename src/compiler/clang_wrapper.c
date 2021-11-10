@@ -52,7 +52,7 @@ static void find_obj(u8* argv0) {
 
 }
 
-static void taint_pass() {
+static void memlog_pass() {
   
   /**
    * Need to enable corresponding llvm optimization level, 
@@ -61,7 +61,7 @@ static void taint_pass() {
   cc_params[cc_par_cnt++] = "-Xclang";
   cc_params[cc_par_cnt++] = "-load";
   cc_params[cc_par_cnt++] = "-Xclang";
-  cc_params[cc_par_cnt++] = alloc_printf("%s/pass/libDFSanHookPass.so", obj_path);
+  cc_params[cc_par_cnt++] = alloc_printf("%s/pass/libMemlogPass.so", obj_path);
 
   cc_params[cc_par_cnt++] = "-mllvm";
   cc_params[cc_par_cnt++] = "-memlog-hook-inst=1";
@@ -106,7 +106,7 @@ static void dfsan_pass() {
 
 }
 
-static void taint_runtime() {
+static void memlog_runtime() {
     //TO DO
     /**
      * --whole-archive will force compiler to link static library, even if
@@ -114,7 +114,7 @@ static void taint_runtime() {
      * into __libc_csu_init.
      */
     cc_params[cc_par_cnt++] = "-Wl,--whole-archive";
-    cc_params[cc_par_cnt++] = alloc_printf("%s/lib/libtaint_rt.a", obj_path);
+    cc_params[cc_par_cnt++] = alloc_printf("%s/lib/libmemlog_rt.a", obj_path);
     cc_params[cc_par_cnt++] = "-Wl,--no-whole-archive";
 }
 
@@ -273,11 +273,15 @@ static void edit_params(u32 argc, char** argv) {
     cc_params[cc_par_cnt++] = "-funroll-loops";
   }
   
-  taint_pass();
-  //dfsan_pass();
 
-  taint_runtime();
+  if(getenv("MEMLOG_MODE")) {
+    memlog_pass();
+  }
+  else {
+    dfsan_pass();
+  }
   dfsan_runtime();
+  memlog_runtime();
   afl_runtime();
   /**
    * Enable pie since dfsan maps shadow memory at 0x10000-0x200200000000, 

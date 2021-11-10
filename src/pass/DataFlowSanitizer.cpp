@@ -1678,12 +1678,12 @@ void DFSanVisitor::visitCallBase(CallBase &CB) {
     if(F && F->getName() == "dfsw$malloc") {
       errs()<<"hook "<<F->getName()<<"\n";
       Value *Arg = CB.getArgOperand(0);
-      IRB.CreateCall(DFSF.DFS.DFSanHookMallocFn, {DFSF.getShadow(Arg), Arg});
+      //IRB.CreateCall(DFSF.DFS.DFSanHookMallocFn, {DFSF.getShadow(Arg), Arg});
     }
     else if(F && F->getName() == "dfsw$free") {
       errs()<<"hook "<<F->getName()<<"\n";
       Value *Arg = CB.getArgOperand(0);
-      IRB.CreateCall(DFSF.DFS.DFSanHookFreeFn, {DFSF.getShadow(Arg), Arg});
+      //IRB.CreateCall(DFSF.DFS.DFSanHookFreeFn, {DFSF.getShadow(Arg), Arg});
     }
   }
   // This is splitline-------------------------------------
