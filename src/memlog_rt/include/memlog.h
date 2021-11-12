@@ -4,6 +4,7 @@
 #define MEMLOG_MAP_H 32
 
 enum HookType {
+    HT_UNKNOWN = 0,
     // __memlog_hook1 (unsigned id, void* ptr, u8 src_type, u8 rst_type);
     // ex. load inst.
     HT_HOOK1 = 1, 
@@ -30,8 +31,10 @@ enum HookType {
     HT_HOOK8 = 8,
     // __memlog_vararg_hook1 (unsigned id, void* ptr, size_t size, size_t num_of_args, ...);
     // ex. get_element_ptr
-    HT_VARARG_HOOK1 = 9
-
+    HT_VARARG_HOOK1 = 9,
+    // __memlog_hook2_int128 (unsigned id, uint128_t value, int src_type, void* ptr, int rst_type);
+    // deal with 16byte float point value
+    HT_HOOK2_INT128 = 10
 };
 
 struct memlog_header {
@@ -56,8 +59,9 @@ struct hook_operand {
   
   void* src;
   void* dst;
-  unsigned long long value;
   unsigned long long size;
+  unsigned long long value;
+  unsigned long long value_128;
 
 };
 

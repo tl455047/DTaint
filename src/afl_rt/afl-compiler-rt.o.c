@@ -9,7 +9,7 @@
    you may not use this file except in compliance with the License.
    You may obtain a copy of the License at:
 
-     http://www.apache.org/licenses/LICENSE-2.0
+     https://www.apache.org/licenses/LICENSE-2.0
 
 
 */
@@ -19,9 +19,10 @@
 #endif
 #include "config.h"
 #include "types.h"
+#include "dtaint.h"
+#include "memlog.h"
 #include "llvm-alternative-coverage.h"
 
-#include "dtaint.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <signal.h>
@@ -66,7 +67,7 @@
 #define CTOR_PRIO 3
 
 #include <sys/mman.h>
-#include <sys/stat.h> 
+#include <fcntl.h>
 
 /* Globals needed by the injected instrumentation. The __afl_area_initial region
    is used for instrumentation output before __afl_map_shm() has a chance to
@@ -115,11 +116,12 @@ __thread u32        __afl_prev_ctx;
 
 int __afl_sharedmem_fuzzing __attribute__((weak));
 
-//struct cmp_map *__afl_cmp_map;
-//struct cmp_map *__afl_cmp_map_backup;
+struct dtaint_map *__afl_dtaint_map;
+struct dtaint_map *__afl_dtaint_map_backup;
 
-extern struct d_tainted_map *__afl_d_tainted_map;
-struct d_tainted_map *__afl_d_tainted_map_backup;
+struct memlog_map *__afl_memlog_map;
+struct memlog_map *__afl_memlog_map_backup;
+
 /* Child pid? */
 
 static s32 child_pid;
@@ -507,7 +509,8 @@ static void __afl_map_shm(void) {
     }
 
   }
-
+  
+  // for dtaint map
   id_str = getenv(DTAINT_SHM_ENV_VAR);
 
   if (__afl_debug) {
@@ -540,14 +543,9 @@ static void __afl_map_shm(void) {
 
     }
 
-    //__afl_d_tainted_map = mmap((void *)0x10000, 0x4000081b2000, PROT_READ | PROT_WRITE,
-    //           MAP_PRIVATE | MAP_FIXED | MAP_NORESERVE | MAP_ANON, shm_id, 0);
-
-    
     /* map the shared memory segment to the address space of the process */
-    shm_base = mmap(0, sizeof(struct d_tainted_map), PROT_READ | PROT_WRITE,
+    shm_base = mmap(0, sizeof(struct dtaint_map), PROT_READ | PROT_WRITE,
                     MAP_SHARED, shm_fd, 0);
-    
     if (shm_base == MAP_FAILED) {
 
       close(shm_fd);
@@ -558,32 +556,90 @@ static void __afl_map_shm(void) {
       exit(2);
 
     }
-   
-    //__afl_cmp_map = shm_base;
-    __afl_d_tainted_map = shm_base;
 
-    char str[64] = "testing for merge shadow and shm.\n";
-    strncpy((char *)__afl_d_tainted_map, str, strlen(str));
-
+    __afl_dtaint_map = shm_base;
 #else
     u32 shm_id = atoi(id_str);
 
-    //__afl_cmp_map = (struct cmp_map *)shmat(shm_id, NULL, 0);
-    __afl_d_tainted_map = (struct d_tainted_map *)shmat(shm_id, NULL, 0);
-
- 
+    __afl_dtaint_map = (struct dtaint_map *)shmat(shm_id, NULL, 0);
 #endif
-    //__afl_cmp_map_backup = __afl_cmp_map;
-    __afl_d_tainted_map_backup = __afl_d_tainted_map;
-    //if (!__afl_cmp_map || __afl_cmp_map == (void *)-1) {
-    if(!__afl_d_tainted_map || __afl_d_tainted_map == (void *)-1) {
+
+    __afl_dtaint_map_backup = __afl_dtaint_map;
+
+    if (!__afl_dtaint_map || __afl_dtaint_map == (void *)-1) {
+
       perror("shmat for dtaint");
       send_forkserver_error(FS_ERROR_SHM_OPEN);
       _exit(1);
 
     }
-    //__afl_d_tainted_map->tainted_data = 0;
-    
+
+  }
+  
+  // for memlog map
+  id_str = getenv(MEMLOG_SHM_ENV_VAR);
+
+  if (__afl_debug) {
+
+    fprintf(stderr, "DEBUG: memlog id_str %s\n",
+            id_str == NULL ? "<null>" : id_str);
+
+  }
+
+  if (id_str) {
+
+    if ((__afl_dummy_fd[1] = open("/dev/null", O_WRONLY)) < 0) {
+
+      if (pipe(__afl_dummy_fd) < 0) { __afl_dummy_fd[1] = 1; }
+
+    }
+
+#ifdef USEMMAP
+    const char *    shm_file_path = id_str;
+    int             shm_fd = -1;
+    struct memlog_map *shm_base = NULL;
+
+    /* create the shared memory segment as if it was a file */
+    shm_fd = shm_open(shm_file_path, O_RDWR, DEFAULT_PERMISSION);
+    if (shm_fd == -1) {
+
+      perror("shm_open() failed\n");
+      send_forkserver_error(FS_ERROR_SHM_OPEN);
+      exit(1);
+
+    }
+
+    /* map the shared memory segment to the address space of the process */
+    shm_base = mmap(0, sizeof(struct memlog_map), PROT_READ | PROT_WRITE,
+                    MAP_SHARED, shm_fd, 0);
+    if (shm_base == MAP_FAILED) {
+
+      close(shm_fd);
+      shm_fd = -1;
+
+      fprintf(stderr, "mmap() failed\n");
+      send_forkserver_error(FS_ERROR_SHM_OPEN);
+      exit(2);
+
+    }
+
+    __afl_memlog_map = shm_base;
+#else
+    u32 shm_id = atoi(id_str);
+
+    __afl_memlog_map = (struct memlog_map *)shmat(shm_id, NULL, 0);
+#endif
+
+    __afl_memlog_map_backup = __afl_memlog_map;
+
+    if (!__afl_memlog_map || __afl_memlog_map == (void *)-1) {
+
+      perror("shmat for memlog");
+      send_forkserver_error(FS_ERROR_SHM_OPEN);
+      _exit(1);
+
+    }
+
   }
 
 }
@@ -617,25 +673,45 @@ static void __afl_unmap_shm(void) {
   }
 
   __afl_area_ptr = __afl_area_ptr_dummy;
-
+  
+  // for dtaint map
   id_str = getenv(DTAINT_SHM_ENV_VAR);
 
   if (id_str) {
 
 #ifdef USEMMAP
 
-    //munmap((void *)__afl_cmp_map, __afl_map_size);
-    munmap((void *)__afl_d_tainted_map, __afl_map_size);
+    munmap((void *)__afl_dtaint_map, __afl_map_size);
+
 #else
 
-    //shmdt((void *)__afl_cmp_map);
-    shmdt((void *)__afl_d_tainted_map);
+    shmdt((void *)__afl_dtaint_map);
+
 #endif
 
-    //__afl_cmp_map = NULL;
-    //__afl_cmp_map_backup = NULL;
-    __afl_d_tainted_map = NULL;
-    __afl_d_tainted_map_backup = NULL;
+    __afl_dtaint_map = NULL;
+    __afl_dtaint_map_backup = NULL;
+
+  }
+  
+  // for memlog map
+  id_str = getenv(MEMLOG_SHM_ENV_VAR);
+
+  if (id_str) {
+
+#ifdef USEMMAP
+
+    munmap((void *)__afl_memlog_map, __afl_map_size);
+
+#else
+
+    shmdt((void *)__afl_memlog_map);
+
+#endif
+
+    __afl_memlog_map = NULL;
+    __afl_memlog_map_backup = NULL;
+
   }
 
   __afl_already_initialized_shm = 0;
@@ -919,8 +995,8 @@ static void __afl_start_forkserver(void) {
   signal(SIGTERM, at_exit);
 
 #ifdef __linux__
-  //if (/*!is_persistent &&*/ !__afl_cmp_map && !getenv("AFL_NO_SNAPSHOT") &&
-  if(/*!is_persistent &&*/ !__afl_d_tainted_map && !getenv("AFL_NO_SNAPSHOT") &&
+  if (/*!is_persistent &&*/ !__afl_dtaint_map && !__afl_memlog_map && 
+    !getenv("AFL_NO_SNAPSHOT") &&
       afl_snapshot_init() >= 0) {
 
     __afl_start_snapshots();
@@ -1023,7 +1099,7 @@ static void __afl_start_forkserver(void) {
   while (1) {
 
     int status;
-    
+
     /* Wait for parent by reading from the pipe. Abort if read fails. */
 
     if (already_read_first) {
@@ -1086,7 +1162,7 @@ static void __afl_start_forkserver(void) {
     if (!child_stopped) {
 
       /* Once woken up, create a clone of our process. */
-      
+
       child_pid = fork();
       if (child_pid < 0) {
 
@@ -1550,45 +1626,6 @@ static int area_is_valid(void *ptr, size_t len) {
 
 }
 
-// gcc libstdc++
-// _ZNKSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEE7compareEPKc
-static u8 *get_gcc_stdstring(u8 *string) {
-
-  u32 *len = (u32 *)(string + 8);
-
-  if (*len < 16) {  // in structure
-
-    return (string + 16);
-
-  } else {  // in memory
-
-    u8 **ptr = (u8 **)string;
-    return (*ptr);
-
-  }
-
-}
-
-// llvm libc++ _ZNKSt3__112basic_stringIcNS_11char_traitsIcEENS_9allocator
-//             IcEEE7compareEmmPKcm
-static u8 *get_llvm_stdstring(u8 *string) {
-
-  // length is in: if ((string[0] & 1) == 0) u8 len = (string[0] >> 1);
-  // or: if (string[0] & 1) u32 *len = (u32 *) (string + 8);
-
-  if (string[0] & 1) {  // in memory
-
-    u8 **ptr = (u8 **)(string + 16);
-    return (*ptr);
-
-  } else {  // in structure
-
-    return (string + 1);
-
-  }
-
-}
-
 /* COVERAGE manipulation features */
 
 // this variable is then used in the shm setup to create an additional map
@@ -1602,8 +1639,9 @@ void __afl_coverage_off() {
   if (likely(__afl_selective_coverage)) {
 
     __afl_area_ptr = __afl_area_ptr_dummy;
-    //__afl_cmp_map = NULL;
-    __afl_d_tainted_map = NULL;
+    __afl_dtaint_map = NULL;
+    __afl_memlog_map = NULL;
+  
   }
 
 }
@@ -1614,8 +1652,9 @@ void __afl_coverage_on() {
   if (likely(__afl_selective_coverage && __afl_selective_coverage_temp)) {
 
     __afl_area_ptr = __afl_area_ptr_backup;
-    //if (__afl_cmp_map_backup) { __afl_cmp_map = __afl_cmp_map_backup; }
-    if(__afl_d_tainted_map_backup) {__afl_d_tainted_map = __afl_d_tainted_map_backup; }
+    if (__afl_dtaint_map_backup) { __afl_dtaint_map = __afl_dtaint_map_backup; }
+    if (__afl_memlog_map_backup) { __afl_memlog_map = __afl_memlog_map_backup; }
+
   }
 
 }
@@ -1626,8 +1665,9 @@ void __afl_coverage_discard() {
   memset(__afl_area_ptr_backup, 0, __afl_map_size);
   __afl_area_ptr_backup[0] = 1;
 
-  //if (__afl_cmp_map) { memset(__afl_cmp_map, 0, sizeof(struct cmp_map)); }
-  if(__afl_d_tainted_map) { memset(__afl_d_tainted_map, 0, __afl_map_size); }
+  if (__afl_dtaint_map) { memset(__afl_dtaint_map, 0, sizeof(struct dtaint_map)); }
+  if (__afl_memlog_map) { memset(__afl_memlog_map, 0, sizeof(struct memlog_map)); }
+
 }
 
 // discard the testcase

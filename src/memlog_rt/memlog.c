@@ -3,13 +3,17 @@
 #include "memlog.h"
 #include "types.h"
 
-struct memlog_map *__afl_memlog_map;
+typedef unsigned __int128 uint128_t;
+
+extern struct memlog_map *__afl_memlog_map;
 /**
  * Call hook.
  * __memlog_hook1 (unsigned id, void* ptr, u8 src_type, u8 rst_type);
  * ex. load inst.
  * __memlog_hook2 (unsigned id, size_t value, int src_type, void* ptr, int rst_type);
  * ex. store inst.
+ *__memlog_hook2_int128 (unsigned id, uint128_t value, int src_type, void* ptr, int rst_type);
+ * deal with 16byte float point value
  * __memlog_hook3 (unsigned id, void* ptr, int c, size_t size);
  * ex. memset
  * __memlog_hook4 (unsigned id, void* dst, void* src, size_t size);
@@ -31,7 +35,7 @@ struct memlog_map *__afl_memlog_map;
 
 void __memlog_debug_output() {
   
-  for(int i = 0; i < MEMLOG_MAP_H; i++) {
+  for(int i = 0; i < MEMLOG_MAP_W; i++) {
     
     if (!__afl_memlog_map->headers[i].hits) continue;
 
@@ -48,13 +52,13 @@ void __memlog_debug_output() {
           __afl_memlog_map->log[i][0].__hook_va_arg.offset,
           __afl_memlog_map->log[i][0].__hook_va_arg.num,
           __afl_memlog_map->log[i][0].__hook_va_arg.ptr);
-          struct hook_va_arg_idx* p = &__afl_memlog_map->
-            va_arg_idx[ __afl_memlog_map->log[i][0].__hook_va_arg.offset];
-          for(int j = 0; j < __afl_memlog_map->log[i][0].__hook_va_arg.num; j++) {
-            fprintf(stderr, "idx: %lld type: %u ",
-            (p + j)->idx,
-            (p + j)->type);
-          }fprintf(stderr, "\n");
+        struct hook_va_arg_idx* p = &__afl_memlog_map->
+          va_arg_idx[ __afl_memlog_map->log[i][0].__hook_va_arg.offset];
+        for(int j = 0; j < __afl_memlog_map->log[i][0].__hook_va_arg.num; j++) {
+          fprintf(stderr, "idx: %lld type: %u ",
+          (p + j)->idx,
+          (p + j)->type);
+        }fprintf(stderr, "\n");
         break;
       default:
         fprintf(stderr, "hook log: type: %u dst: %p src: %p value: %lld size: %lld\n",
@@ -71,24 +75,33 @@ void __memlog_debug_output() {
 
 __attribute__((constructor)) 
 void __memlog_debug_init() {
-    
-    
-    fprintf(stderr, "__memlog_debug_init\n");
+      
+  fprintf(stderr, "__memlog_debug_init\n");
 
-    if(!__afl_memlog_map) {
-        __afl_memlog_map = (struct memlog_map *)malloc(sizeof(struct memlog_map));
-    }
+  if(!__afl_memlog_map) {
+      __afl_memlog_map = (struct memlog_map *)malloc(sizeof(struct memlog_map));
+  }
+
 }
 
 __attribute__((destructor)) 
 void __memlog_debug_fini() {
-    fprintf(stderr, "__memlog_debug_fini\n");
 
-    __memlog_debug_output();
+  fprintf(stderr, "__memlog_debug_fini\n");
 
-    if(__afl_memlog_map) 
-        free(__afl_memlog_map);
+  __memlog_debug_output();
+
+  if(__afl_memlog_map) 
+    free(__afl_memlog_map);
+
 }
+
+void __memlog_hook_debug(int num1, void* num2, int num3, int num4) {
+ 
+  fprintf(stderr, "num1: %d num2: %p num3: %d num4: %d\n", num1, num2, num3, num4);
+
+}
+
 #endif
 
 /**
@@ -159,6 +172,43 @@ void __memlog_hook2(unsigned id, size_t value, int src_type, void* ptr, int rst_
   hits &= MEMLOG_MAP_H - 1;
   __afl_memlog_map->log[id][hits].__hook_op.dst = ptr;
   __afl_memlog_map->log[id][hits].__hook_op.value = value;
+
+}
+
+/**
+ * Deal with floating point 16 byte value.
+ */ 
+void __memlog_hook2_int128(unsigned id, uint128_t value, int src_type, void* ptr, int rst_type) {
+  
+  #ifdef MEMLOG_DEBUG
+  fprintf(stderr, "__memlog_hook2_int128: id: %u value: %x src_type: %d\
+  ptr: %p rst_type: %d\n", id, value, src_type, ptr, rst_type);
+  #endif
+  
+  if (unlikely(!__afl_memlog_map)) return;
+
+  unsigned hits;
+  if (!__afl_memlog_map->headers[id].type) {
+    
+    hits = 0;
+    __afl_memlog_map->headers[id].hits = 1;
+    __afl_memlog_map->headers[id].type = HT_HOOK2_INT128;
+  
+    __afl_memlog_map->headers[id].src_shape = src_type;
+    __afl_memlog_map->headers[id].rst_shape = rst_type;
+
+  }
+  else {
+    
+    hits = __afl_memlog_map->headers[id].hits++;
+
+  }
+  
+  hits &= MEMLOG_MAP_H - 1;
+  
+  __afl_memlog_map->log[id][hits].__hook_op.dst = ptr;
+  __afl_memlog_map->log[id][hits].__hook_op.value = (uint64_t)value;
+  __afl_memlog_map->log[id][hits].__hook_op.value_128 = (uint64_t)(value >> 64);
 
 }
 
@@ -382,23 +432,12 @@ void __memlog_va_arg_hook1(unsigned id, void* ptr, int src_type, int rst_type, i
   rst_type: %d offset: %d ", id, ptr, src_type, rst_type, num_of_idx);
   for(int j = 0; j < num_of_idx; j++) {
     size = va_arg(args, int);
-    switch(size) {
-      case 1:
-        fprintf(stderr, "%d ", va_arg(args, char));
-        break;
-      case 2:
-        fprintf(stderr, "%d ", va_arg(args, short));
-        break;
-      case 4:
-        fprintf(stderr, "%d ", va_arg(args, int));
-        break;
-      case 8:
-        fprintf(stderr, "%lld ", va_arg(args, long long));
-        break;
-      default:
-      // what fucking happened ?
-        break;
-    }
+    
+    if (size <= sizeof(int))
+      fprintf(stderr, "%d ", va_arg(args, int));
+    else if (size <= sizeof(long long))
+      fprintf(stderr, "%lld ", va_arg(args, long long));
+
   }fprintf(stderr, "\n");
 
   va_end(args);
@@ -431,7 +470,7 @@ void __memlog_va_arg_hook1(unsigned id, void* ptr, int src_type, int rst_type, i
   __afl_memlog_map->current_pos;
   
   // store idx 
-  struct hook_va_arg_idx *p = 
+  /*struct hook_va_arg_idx *p = 
     &__afl_memlog_map->va_arg_idx[__afl_memlog_map->current_pos];
 
   va_start(args, num_of_idx);
@@ -439,27 +478,15 @@ void __memlog_va_arg_hook1(unsigned id, void* ptr, int src_type, int rst_type, i
     
     size = va_arg(args, int);
     (p + i)->type = size; 
-    switch(size) {
-    case 1:
-        (p + i)->idx = va_arg(args, char);
-        break;
-    case 2:
-        (p + i)->idx = va_arg(args, short);
-        break;
-    case 4:
-        (p + i)->idx = va_arg(args, int);
-        break;
-    case 8:
-        (p + i)->idx = va_arg(args, long long);
-        break;
-    default:
-    // what fucking happened ?
-        break;
-    }
+    
+    if (size <= sizeof(int))
+      (p + i)->idx = va_arg(args, int);
+    else if (size <= sizeof(long long))
+      (p + i)->idx = va_arg(args, long long);
     
   }
   va_end(args);
 
-  __afl_memlog_map->current_pos += num_of_idx;
+  __afl_memlog_map->current_pos += num_of_idx;*/
 
 }

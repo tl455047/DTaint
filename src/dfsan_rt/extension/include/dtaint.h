@@ -3,7 +3,7 @@
 #define TAINTED_MAP_W 2 << 16
 #define TAINTED_MAP_H 32
 
-struct tainted_header {
+struct dtaint_header {
   
   unsigned hits : 24;
   // instructions executed
@@ -33,7 +33,7 @@ struct tainted_header {
 } __attribute__((packed));
 
 
-struct tainted_operands {
+struct dtaint_operands {
 
   unsigned long long v0;
   unsigned long long v1;
@@ -42,18 +42,18 @@ struct tainted_operands {
   // How many operands we need to record ?
 };
 
-struct d_tainted {
+struct dtainted {
   
   unsigned int pos;
   unsigned int len;
 
 };
 
-struct d_tainted_map {
+struct dtaint_map {
   
-  struct tainted_header headers[TAINTED_MAP_W];
+  struct dtaint_header headers[TAINTED_MAP_W];
   //struct tainted_operands log[TAINTED_MAP_W][TAINTED_MAP_H]; 
-  struct d_tainted offset[TAINTED_MAP_W][TAINTED_MAP_H]; 
+  struct dtainted offset[TAINTED_MAP_W][TAINTED_MAP_H]; 
   // I think 32 node of offset is sufficient for almost all situation.
 
 };

@@ -16,7 +16,7 @@
    you may not use this file except in compliance with the License.
    You may obtain a copy of the License at:
 
-     http://www.apache.org/licenses/LICENSE-2.0
+     https://www.apache.org/licenses/LICENSE-2.0
 
  */
 
@@ -237,11 +237,11 @@
    (note that if this value is changed, several areas in afl-cc.c, afl-fuzz.c
    and afl-fuzz-state.c have to be changed as well! */
 
-#define MAX_FILE (1 * 1024 * 1024U)
+#define MAX_FILE (1 * 1024 * 1024L)
 
 /* The same, for the test case minimizer: */
 
-#define TMIN_MAX_FILE (10 * 1024 * 1024)
+#define TMIN_MAX_FILE (10 * 1024 * 1024L)
 
 /* Block normalization steps for afl-tmin: */
 
@@ -460,7 +460,15 @@
 
 /* AFL RedQueen */
 
+#define CMPLOG_SHM_ENV_VAR "__AFL_CMPLOG_SHM_ID"
+
+/* dtaint */
+
 #define DTAINT_SHM_ENV_VAR "__AFL_DTAINT_SHM_ID"
+
+/* memlog */
+
+#define MEMLOG_SHM_ENV_VAR "__AFL_MEMLOG_SHM_ID"
 
 /* CPU Affinity lockfile env var */
 

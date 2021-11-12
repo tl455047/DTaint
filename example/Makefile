@@ -2,7 +2,7 @@ CC = clang
 CXX = clang++  
 CFLAGS = -O3 -fPIE -pie -g -v 
 CXXFLAGS = -O3 -fPIE -pie
-OPT=/usr/bin/opt-10
+OPT=/usr/bin/opt-11
 PASS1 = ../build/pass/libDFSanPass.so 
 PASS2 = ../build/pass/libTaintPass.so 
 PASS1_ARG = -dfsan
@@ -30,9 +30,10 @@ origin:
 	$(CC) $(CFLAGS) target.c -o target
 
 opt:
-	$(CC) $(CFLAGS) -c -emit-llvm $(SRC) -o $(BC) 
-	$(OPT) -load $(PASS2) $(PASS2_ARG) $(BC) -o $(BC2)
-	$(CC) $(CFLAGS) $(BC2) $(RUNTIME2) -o target
+	$(CXX) $(CFLAGS) -S -emit-llvm test.cpp -o test.bc 
+	$(CXX) $(CFLAGS) -S -emit-llvm -Xclang -load -Xclang ../build/pass/libMemlogPass.so -mllvm -memlog-hook-inst=1 test.cpp -o test2.bc 
+#$(OPT) -load ../build/pass/libMemlogPass.so -Memloghook test.bc -o test2.bc
+#$(CC) $(CFLAGS) $(BC2) $(RUNTIME2) -o target
 	
 clean:
 	rm -f $(wildcard *.o) 

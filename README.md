@@ -21,5 +21,12 @@ This project is for taint analysis based on llvm DataFlowSanitizer, and used for
   - DFSan Flag
     - ```export DFSAN_OPTIONS=dump_labels_at_exit=dump.txt```
       - This flag will dump label list in fini stage. 
+  - hooklist
+    - To decide which function call we need to hook.
+    - We set up several argument format hook functions,
+      you need to choose proper hook function numbers for each function call.
+## Debug mode
+  - add command line option -DMEMLOG_DEBUG to cmake .., 
+    which can enable debug message.      
 ## TODO
   - Modify DFSan runtime library to support tracing input offset.

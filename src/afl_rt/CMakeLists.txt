@@ -5,6 +5,7 @@ add_library(afl_rt STATIC
 
 include_directories(include)
 include_directories(../dfsan_rt/extension/include)
+include_directories(../memlog_rt/include)
 
 set_target_properties(afl_rt 
     PROPERTIES

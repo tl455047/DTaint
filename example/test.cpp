@@ -11,7 +11,7 @@ struct element {
 
 int main ()
 {
-  std::vector<int> myvector(3, 100);
+  std::vector<int> myvector(100, 100);
   std::vector<int>::iterator it;
 
   //int a[32][32];
