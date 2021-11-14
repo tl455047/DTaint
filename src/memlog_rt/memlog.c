@@ -12,8 +12,8 @@ extern struct memlog_map *__afl_memlog_map;
  * ex. load inst.
  * __memlog_hook2 (unsigned id, size_t value, int src_type, void* ptr, int rst_type);
  * ex. store inst.
- *__memlog_hook2_int128 (unsigned id, uint128_t value, int src_type, void* ptr, int rst_type);
- * deal with 16byte float point value
+ *__memlog_hook2_int128 (unsigned id, __int128 value, int src_type, void* ptr, int rst_type);
+ * deal with 16 byte value
  * __memlog_hook3 (unsigned id, void* ptr, int c, size_t size);
  * ex. memset
  * __memlog_hook4 (unsigned id, void* dst, void* src, size_t size);
@@ -60,6 +60,15 @@ void __memlog_debug_output() {
           (p + j)->type);
         }fprintf(stderr, "\n");
         break;
+      case HT_HOOK2_INT128:
+        fprintf(stderr, "hook log: type: %u dst: %p src: %p upper value: %p lower value %p size: %lld\n",
+        __afl_memlog_map->headers[i].type,
+        __afl_memlog_map->log[i][0].__hook_op.dst,
+        __afl_memlog_map->log[i][0].__hook_op.src,
+        __afl_memlog_map->log[i][0].__hook_op.value_128,
+        __afl_memlog_map->log[i][0].__hook_op.value,
+        __afl_memlog_map->log[i][0].__hook_op.size);
+        break;
       default:
         fprintf(stderr, "hook log: type: %u dst: %p src: %p value: %lld size: %lld\n",
           __afl_memlog_map->headers[i].type,
@@ -96,9 +105,31 @@ void __memlog_debug_fini() {
 
 }
 
-void __memlog_hook_debug(int num1, void* num2, int num3, int num4) {
+void __memlog_hook_va_arg_debug(int num1, void* num2, double num3, int num_of_idx, ...) {
  
-  fprintf(stderr, "num1: %d num2: %p num3: %d num4: %d\n", num1, num2, num3, num4);
+  fprintf(stderr, "num1: %d num2: %p num3: %lf num4: %d\n", num1, num2, num3, num_of_idx);
+
+  va_list args;
+  va_start(args, num_of_idx);
+  
+  //for(int j = 0; j < num_of_idx; j++) {
+  fprintf(stderr, "float: %lf\n", va_arg(args, double));
+  
+  fprintf(stderr, "int64: %p\n", va_arg(args, int64_t));
+
+  __int128_t val = va_arg(args, __int128_t);
+
+  fprintf(stderr, "upper: %p lower: %p\n", (uint64_t)(val >> 64), (uint64_t)(val));
+  
+    //}
+  va_end(args);
+  
+}
+
+void __memlog_hook_debug(int num1, void* num2, __int128 num3, double num4) {
+  
+  fprintf(stderr, "num1: %d num2: %p upper num3: %p lower num3: %p num4: %lf\n", 
+  num1, num2, (int64_t)(num3 >> 64), (int64_t)num3, num4);
 
 }
 
@@ -178,11 +209,11 @@ void __memlog_hook2(unsigned id, size_t value, int src_type, void* ptr, int rst_
 /**
  * Deal with floating point 16 byte value.
  */ 
-void __memlog_hook2_int128(unsigned id, uint128_t value, int src_type, void* ptr, int rst_type) {
+void __memlog_hook2_int128(unsigned id, int128_t value, int src_type, void* ptr, int rst_type) {
   
   #ifdef MEMLOG_DEBUG
-  fprintf(stderr, "__memlog_hook2_int128: id: %u value: %x src_type: %d\
-  ptr: %p rst_type: %d\n", id, value, src_type, ptr, rst_type);
+  fprintf(stderr, "__memlog_hook2_int128: id: %u upper value: %p lower value: %p src_type: %d\
+  ptr: %p rst_type: %d\n", id, (int64_t)(value >> 64), (int64_t)value, src_type, ptr, rst_type);
   #endif
   
   if (unlikely(!__afl_memlog_map)) return;
