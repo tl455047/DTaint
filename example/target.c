@@ -3,7 +3,7 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <stdlib.h>
-#define MAXSIZE 64
+#define MAXSIZE 256
 
 
 struct A{

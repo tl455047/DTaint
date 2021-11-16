@@ -1,10 +1,5 @@
 #include <stdio.h>
-
-
-float float_test(float a, float b) {
-
-    return a + b;
-}
+#include "float_test.h"
 
 int main() {
     float a;

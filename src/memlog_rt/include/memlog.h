@@ -2,39 +2,40 @@
 #define _MEMLOG_H_
 #define MEMLOG_MAP_W 2 << 16
 #define MEMLOG_MAP_H 32
+#define MEMLOG_MAXiMUM_IDX_NUM 10
 
 enum HookType {
+
     HT_UNKNOWN = 0,
-    // __memlog_hook1 (unsigned id, void* ptr, u8 src_type, u8 rst_type);
+    // __memlog_hook1 (unsigned id, void* ptr, unsigned src_type, unsigned rst_type);
     // ex. load inst.
     HT_HOOK1 = 1, 
-    // __memlog_hook2 (unsigned id, size_t value, int src_type, void* ptr, int rst_type);
+    // __memlog_hook2 (unsigned id, size_t value, unsigned src_type, void* ptr, unsigned rst_type);
     // ex. store inst.
     HT_HOOK2 = 2,
+    // __memlog_hook2_int128 (unsigned id, uint128_t value, unsigned src_type, void* ptr, unsigned rst_type);
+    // deal with 16byte float point value
+    HT_HOOK2_INT128 = 3,
     // __memlog_hook3 (unsigned id, void* ptr, int c, size_t size);
     // ex. memset
-    HT_HOOK3 = 3,
+    HT_HOOK3 = 4,
     // __memlog_hook4 (unsigned id, void* dst, void* src, size_t size);
     // ex. memcpy
-    HT_HOOK4 = 4,
-    // __memlog_hook5 (unsigned id, int type, size_t size);
-    // ex. alloca
-    HT_HOOK5 = 5,
-    // __memlog_hook6 (unsigned id, size_t size);
+    HT_HOOK4 = 5,
+    // __memlog_hook5 (unsigned id, size_t size);
     // ex. malloc
-    HT_HOOK6 = 6,
-    // __memlog_hook7 (unsigned id, void* ptr);
+    HT_HOOK5 = 6,
+    // __memlog_hook6 (unsigned id, void* ptr);
     // ex. free
-    HT_HOOK7 = 7,
-    // __memlog_hook8 (unsigned id, void* ptr, size_t size);
+    HT_HOOK6 = 7,
+    // __memlog_hook7 (unsigned id, void* ptr, size_t size);
     // ex. realloc
-    HT_HOOK8 = 8,
-    // __memlog_vararg_hook1 (unsigned id, void* ptr, size_t size, size_t num_of_args, ...);
+    HT_HOOK7 = 8,
+    // __memlog_va_arg_hook1 (unsigned id, void* ptr, unsigned src_type, 
+    // unsigned rst_type, unsigned num_of_idx, ...);
     // ex. get_element_ptr
-    HT_VARARG_HOOK1 = 9,
-    // __memlog_hook2_int128 (unsigned id, uint128_t value, int src_type, void* ptr, int rst_type);
-    // deal with 16byte float point value
-    HT_HOOK2_INT128 = 10
+    HT_VARARG_HOOK1 = 9
+
 };
 
 struct memlog_header {
@@ -67,9 +68,9 @@ struct hook_operand {
 
 struct hook_va_arg_operand {
   
-  unsigned offset;
   unsigned num;
   void* ptr;
+  unsigned idx[MEMLOG_MAXiMUM_IDX_NUM];
 
 } __attribute__((packed));
 
@@ -91,8 +92,6 @@ struct memlog_map {
   
   struct memlog_header headers[MEMLOG_MAP_W];
   union hook_operands log[MEMLOG_MAP_W][MEMLOG_MAP_H]; 
-  unsigned current_pos;
-  struct hook_va_arg_idx va_arg_idx[MEMLOG_MAP_W]; // what is the proper size for this data section?
 
 };
 
