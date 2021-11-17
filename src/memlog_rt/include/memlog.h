@@ -2,7 +2,7 @@
 #define _MEMLOG_H_
 #define MEMLOG_MAP_W 2 << 16
 #define MEMLOG_MAP_H 32
-#define MEMLOG_MAXiMUM_IDX_NUM 10
+#define MEMLOG_MAXiMUM_IDX_NUM 8
 
 enum HookType {
 
@@ -41,18 +41,16 @@ enum HookType {
 struct memlog_header {
   
   // instructions executed
-  unsigned hits : 24;
+  unsigned hits;
   // unique id
-  unsigned id : 24;
+  unsigned id;
   // src shape 
-  unsigned src_shape : 5;
+  unsigned src_shape;
   // result shape
-  unsigned rst_shape : 5;
+  unsigned rst_shape;
   //type
-  unsigned type : 5;
-  // padding
-  unsigned reserved : 3;
-
+  unsigned type;
+  
 } __attribute__((packed));
 
 

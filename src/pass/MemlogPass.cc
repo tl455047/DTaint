@@ -10,9 +10,9 @@
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Support/SpecialCaseList.h"
 #include "llvm/Transforms/IPO/PassManagerBuilder.h"
+#include <fstream>
 
 using namespace llvm;
-
 
 static cl::opt<bool> ClHookInst(
     "memlog-hook-inst",
@@ -148,12 +148,24 @@ class MemlogPass: public ModulePass, public InstVisitor<MemlogPass> {
     FunctionCallee MemlogVaArgHook1Func;
 
     static unsigned HookID;
+    static const std::string HookIDFileName;
+    static const unsigned int MemlogMapW;
     public:
         static char ID;
         
         MemlogPass(): ModulePass(ID) { 
+
             __HookABIList.set(
             SpecialCaseList::createOrDie(ClABIListFiles, *vfs::getRealFileSystem()));
+
+            std::fstream InFile;
+            InFile.open(HookIDFileName, std::ios::in | std::ios::out);
+            if (InFile.eof())
+                HookID = 0;
+            else 
+                InFile >> HookID;
+            InFile.close();
+
         }
 
         StringRef getPassName() const override {
@@ -210,10 +222,14 @@ class MemlogPass: public ModulePass, public InstVisitor<MemlogPass> {
 }
 
 unsigned MemlogPass::HookID = 0;
+const std::string MemlogPass::HookIDFileName = "/tmp/.hookID.txt";
+const unsigned int MemlogPass::MemlogMapW = 65536;
+
 char MemlogPass::ID = 0;
+
 bool MemlogPass::doInitialization(Module &M) {
 
-    errs() << getPassName() << " init\n";
+    errs() << getPassName() << " " << HookID << " init\n";
 
     TaintDataLayout = &M.getDataLayout();
     // get type
@@ -275,11 +291,18 @@ bool MemlogPass::runOnModule(Module &M) {
         }
         
     }*/
+
+  
     for (Function &F : M) {
    
         visit(F);   
         
     }
+
+    std::fstream OutFile;
+    OutFile.open(HookIDFileName, std::ios::out | std::ios::trunc);
+    OutFile << HookID % MemlogMapW;
+    OutFile.close();
 
     return true;
 }
@@ -331,7 +354,7 @@ void MemlogPass::memlogHook2(CallBase &CB) {
  */
 void MemlogPass::memlogHook3(CallBase &CB) {
 
-    errs() << "memloghook3\n"; 
+    //errs() << "memloghook3\n"; 
     IRBuilder <> IRB(&CB);
     IRB.CreateCall(MemlogHook3Func, {ConstantInt::get(Int32Ty, HookID++), 
         CB.getArgOperand(0), CB.getArgOperand(1), CB.getArgOperand(2)});
@@ -344,7 +367,7 @@ void MemlogPass::memlogHook3(CallBase &CB) {
  */
 void MemlogPass::memlogHook4(CallBase &CB) {
      
-    errs() << "memloghook4\n"; 
+    //errs() << "memloghook4\n"; 
     IRBuilder <> IRB(&CB);
     IRB.CreateCall(MemlogHook4Func, {ConstantInt::get(Int32Ty, HookID++),
         CB.getArgOperand(0), CB.getArgOperand(1), CB.getArgOperand(2)});
@@ -357,7 +380,7 @@ void MemlogPass::memlogHook4(CallBase &CB) {
  */
 void MemlogPass::memlogHook5(CallBase &CB) {
 
-    errs() << "memloghook5\n"; 
+    //errs() << "memloghook5\n"; 
     IRBuilder <> IRB(&CB);
     IRB.CreateCall(MemlogHook5Func, {ConstantInt::get(Int32Ty, HookID++), 
         CB.getArgOperand(0)});
@@ -370,7 +393,7 @@ void MemlogPass::memlogHook5(CallBase &CB) {
  */
 void MemlogPass::memlogHook6(CallBase &CB) {
     
-    errs() << "memloghook6\n";
+    //errs() << "memloghook6\n";
     IRBuilder <> IRB(&CB);
     IRB.CreateCall(MemlogHook6Func, {ConstantInt::get(Int32Ty, HookID++), 
         CB.getArgOperand(0)});
@@ -383,7 +406,7 @@ void MemlogPass::memlogHook6(CallBase &CB) {
  */
 void MemlogPass::memlogHook7(CallBase &CB) {
     
-    errs() << "memloghook7\n"; 
+    //errs() << "memloghook7\n"; 
     IRBuilder <> IRB(&CB);
     IRB.CreateCall(MemlogHook7Func, {ConstantInt::get(Int32Ty, HookID++), 
         CB.getArgOperand(0), CB.getArgOperand(1)});
@@ -428,7 +451,7 @@ void MemlogPass::visitLoadInst(LoadInst &LI) {
         
         IRB.CreateCall(MemlogHook1Func, {ConstantInt::get(Int32Ty, HookID++), LI.getPointerOperand(),
             ConstantInt::get(Int32Ty, SourceType), ConstantInt::get(Int32Ty, ResultType)});
-
+    
     }
 
 }
@@ -467,7 +490,7 @@ void MemlogPass::visitCallBase(CallBase &CB) {
     
     if (ClHookInst && F && !F->isIntrinsic() && shouldHook(F)) {
         
-         errs() << "Call Base inst hook "<< F->getName() << "\n"; 
+        //errs() << "Call Base inst hook "<< F->getName() << "\n"; 
         switch(getHookType(F)) {
             case HT_HOOK1:
                 memlogHook1(CB);
@@ -507,7 +530,7 @@ void MemlogPass::visitCallBase(CallBase &CB) {
 }*/
 
 void MemlogPass::visitInvokeInst(InvokeInst &I) {
-    errs() << "visitInvokeInst\n";
+    //errs() << "visitInvokeInst\n";
 
     if (ClHookInst) {
 
@@ -529,6 +552,7 @@ void MemlogPass::visitGetElementPtrInst(GetElementPtrInst &I) {
         ArgArray.push_back(ConstantInt::get(Int32Ty, ResultType));
         // need to pass type and idx both
         ArgArray.push_back(ConstantInt::get(Int32Ty, I.getNumIndices()));
+        //ArgArray.push_back(ConstantInt::get(Int32Ty, 9527));
         // get idx and type
         for (User::op_iterator it = I.idx_begin(); it != I.idx_end(); it++) {
             ArgArray.push_back(ConstantInt::get(Int32Ty, 
