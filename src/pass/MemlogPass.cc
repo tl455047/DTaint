@@ -25,6 +25,11 @@ static cl::list<std::string> ClABIListFiles(
     cl::desc("File listing native ABI functions and how the pass hooks them"),
     cl::Hidden);
 
+// for debug
+static cl::opt<bool> ClDebug(
+    "memlog-debug",
+    cl::desc("Output debug message."),
+    cl::Hidden, cl::init(false));
 
 static StringRef GetGlobalTypeString(const GlobalValue &G) {
   // Types of GlobalVariables are always pointer types.
@@ -313,6 +318,7 @@ bool MemlogPass::shouldHook(const Function *F) {
 }
 
 MemlogPass::HookType MemlogPass::getHookType(const Function *F) {
+
     if(__HookABIList.isIn(*F, "hook1")) 
         return HT_HOOK1;
     else if(__HookABIList.isIn(*F, "hook2"))
@@ -330,6 +336,7 @@ MemlogPass::HookType MemlogPass::getHookType(const Function *F) {
     else if(__HookABIList.isIn(*F, "vararghook1"))
         return HT_VARARG_HOOK1;
     return HT_UNKNOWN;
+
 }
 
 /**
@@ -354,7 +361,8 @@ void MemlogPass::memlogHook2(CallBase &CB) {
  */
 void MemlogPass::memlogHook3(CallBase &CB) {
 
-    //errs() << "memloghook3\n"; 
+    if (ClDebug)
+        errs() << "memloghook3\n"; 
     IRBuilder <> IRB(&CB);
     IRB.CreateCall(MemlogHook3Func, {ConstantInt::get(Int32Ty, HookID++), 
         CB.getArgOperand(0), CB.getArgOperand(1), CB.getArgOperand(2)});
@@ -367,7 +375,8 @@ void MemlogPass::memlogHook3(CallBase &CB) {
  */
 void MemlogPass::memlogHook4(CallBase &CB) {
      
-    //errs() << "memloghook4\n"; 
+    if (ClDebug)
+        errs() << "memloghook4\n"; 
     IRBuilder <> IRB(&CB);
     IRB.CreateCall(MemlogHook4Func, {ConstantInt::get(Int32Ty, HookID++),
         CB.getArgOperand(0), CB.getArgOperand(1), CB.getArgOperand(2)});
@@ -380,7 +389,8 @@ void MemlogPass::memlogHook4(CallBase &CB) {
  */
 void MemlogPass::memlogHook5(CallBase &CB) {
 
-    //errs() << "memloghook5\n"; 
+    if (ClDebug)
+        errs() << "memloghook5\n"; 
     IRBuilder <> IRB(&CB);
     IRB.CreateCall(MemlogHook5Func, {ConstantInt::get(Int32Ty, HookID++), 
         CB.getArgOperand(0)});
@@ -393,7 +403,8 @@ void MemlogPass::memlogHook5(CallBase &CB) {
  */
 void MemlogPass::memlogHook6(CallBase &CB) {
     
-    //errs() << "memloghook6\n";
+    if (ClDebug)
+        errs() << "memloghook6\n";
     IRBuilder <> IRB(&CB);
     IRB.CreateCall(MemlogHook6Func, {ConstantInt::get(Int32Ty, HookID++), 
         CB.getArgOperand(0)});
@@ -406,7 +417,8 @@ void MemlogPass::memlogHook6(CallBase &CB) {
  */
 void MemlogPass::memlogHook7(CallBase &CB) {
     
-    //errs() << "memloghook7\n"; 
+    if (ClDebug)
+        errs() << "memloghook7\n"; 
     IRBuilder <> IRB(&CB);
     IRB.CreateCall(MemlogHook7Func, {ConstantInt::get(Int32Ty, HookID++), 
         CB.getArgOperand(0), CB.getArgOperand(1)});
@@ -490,7 +502,9 @@ void MemlogPass::visitCallBase(CallBase &CB) {
     
     if (ClHookInst && F && !F->isIntrinsic() && shouldHook(F)) {
         
-        //errs() << "Call Base inst hook "<< F->getName() << "\n"; 
+        if (ClDebug)
+          errs() << "hook "<< F->getName() << "\n"; 
+        
         switch(getHookType(F)) {
             case HT_HOOK1:
                 memlogHook1(CB);
@@ -542,6 +556,9 @@ void MemlogPass::visitGetElementPtrInst(GetElementPtrInst &I) {
     
     if (ClHookInst) {
         
+        if (ClDebug)
+            errs() << "hook GetElementPtr id: " << HookID << "\n";
+
         size_t SourceType = TaintDataLayout->getTypeStoreSize(I.getSourceElementType());
         size_t ResultType = TaintDataLayout->getTypeStoreSize(I.getResultElementType());
         
@@ -570,6 +587,9 @@ void MemlogPass::visitGetElementPtrInst(GetElementPtrInst &I) {
 void MemlogPass::visitMemSetInst(MemSetInst &I) {
    
     if (ClHookInst) {
+        
+        if (ClDebug)
+            errs() << "hook MemSetInst id: " << HookID << "\n";
 
         IRBuilder <> IRB(&I);
         IRB.CreateCall(MemlogHook3Func, {ConstantInt::get(Int32Ty, HookID++), I.getArgOperand(0),
@@ -583,6 +603,9 @@ void MemlogPass::visitMemCpyInst(MemCpyInst &I) {
     
     if (ClHookInst) {
         
+        if (ClDebug)
+            errs() << "hook MemCpyInst id: " << HookID << "\n";
+
         IRBuilder <> IRB(&I);
         IRB.CreateCall(MemlogHook4Func, {ConstantInt::get(Int32Ty, HookID++), I.getArgOperand(0),
             I.getArgOperand(1), I.getArgOperand(2)});
@@ -594,7 +617,10 @@ void MemlogPass::visitMemCpyInst(MemCpyInst &I) {
 void MemlogPass::visitMemCpyInlineInst(MemCpyInlineInst &I) {
 
     if (ClHookInst) {
-    
+        
+        if (ClDebug)
+            errs() << "hook MemCpyInlineInst id: " << HookID << "\n";
+        
         IRBuilder <> IRB(&I);
         IRB.CreateCall(MemlogHook4Func, {ConstantInt::get(Int32Ty, HookID++), I.getArgOperand(0),
             I.getArgOperand(1), I.getArgOperand(2)}); 
@@ -606,7 +632,10 @@ void MemlogPass::visitMemCpyInlineInst(MemCpyInlineInst &I) {
 void MemlogPass::visitMemMoveInst(MemMoveInst &I) {
     
     if (ClHookInst) {
-    
+        
+        if (ClDebug)
+            errs() << "hook MemMoveInst id: " << HookID << "\n";
+
         IRBuilder <> IRB(&I);
         IRB.CreateCall(MemlogHook4Func, {ConstantInt::get(Int32Ty, HookID++), I.getArgOperand(0),
             I.getArgOperand(1), I.getArgOperand(2)});
@@ -637,8 +666,9 @@ void MemlogPass::visitAllocaInst(AllocaInst &I) {
  * in the future. 
  */
 void MemlogPass::visitExtractElementInst(ExtractElementInst &I) {
-    //errs() << "visitExtractElementInst\n";  
-
+   
+    if (ClDebug)
+        errs() << "hook ExtractElementInst id: " << HookID << "\n";
     /*if (ClHookInst) {
         
         size_t VectorType = TaintDataLayout->getPointerTypeSize(I.getVectorOperandType());
@@ -652,6 +682,8 @@ void MemlogPass::visitExtractElementInst(ExtractElementInst &I) {
 
 void MemlogPass::visitInsertElementInst(InsertElementInst &I) {
 
+    if (ClDebug)
+        errs() << "hook InsertElementInst id: " << HookID << "\n";
     /*if (ClHookInst) {
         
         size_t VectorType = TaintDataLayout->getTypeStoreSize(
@@ -665,9 +697,9 @@ void MemlogPass::visitInsertElementInst(InsertElementInst &I) {
 
 void MemlogPass::visitExtractValueInst(ExtractValueInst &I) {
     
-    /*errs() << "visitExtractValueInst\n"; 
-
-    if (ClHookInst) {
+    if (ClDebug)
+        errs() << "hook ExtractValueInst id: " << HookID << "\n";
+    /*if (ClHookInst) {
 
         errs() << I.getNumIndices() << " " << I.getAggregateOperand() << "\n";
         
@@ -685,9 +717,10 @@ void MemlogPass::visitExtractValueInst(ExtractValueInst &I) {
 }
 
 void MemlogPass::visitInsertValueInst(InsertValueInst &I) {
-    /*errs() << "visitInsertValueInst " << I.getFunction()->getName() << "\n"; 
-
-    if (ClHookInst) {
+   
+    if (ClDebug)
+        errs() << "hook InsertValueInst id: " << HookID << "\n";
+    /*if (ClHookInst) {
 
         std::vector<Value *> ArgArray;
         ArgArray.push_back(I.getInsertedValueOperand());

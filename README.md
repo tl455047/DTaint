@@ -1,4 +1,4 @@
-# Dora-Taint
+# DTaint
 This project is for taint analysis based on llvm DataFlowSanitizer, and used for supporting fuzzing.
 ## Directories
 - src
