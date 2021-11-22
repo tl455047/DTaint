@@ -66,3 +66,7 @@ add_custom_command(OUTPUT ${dfsan_abilist_filename}
 add_dependencies(dfsan dfsan_abilist)
 install(FILES ${dfsan_abilist_filename}
         DESTINATION ${COMPILER_RT_INSTALL_PATH}/share)
+
+
+option(DTAINT_DEBUG "DTaint Debugging" OFF)
+append_list_if(DTAINT_DEBUG -DFSAN_CFLAGS)

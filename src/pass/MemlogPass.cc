@@ -454,7 +454,7 @@ void MemlogPass::whichType(Type *T) {
 
 void MemlogPass::visitLoadInst(LoadInst &LI) {
     
-    if (ClHookInst) { 
+    /*if (ClHookInst) { 
         
         size_t SourceType = TaintDataLayout->getPointerTypeSize(LI.getPointerOperandType());
         size_t ResultType = TaintDataLayout->getTypeStoreSize(LI.getType());
@@ -464,13 +464,13 @@ void MemlogPass::visitLoadInst(LoadInst &LI) {
         IRB.CreateCall(MemlogHook1Func, {ConstantInt::get(Int32Ty, HookID++), LI.getPointerOperand(),
             ConstantInt::get(Int32Ty, SourceType), ConstantInt::get(Int32Ty, ResultType)});
     
-    }
+    }*/
 
 }
 
 void MemlogPass::visitStoreInst(StoreInst &SI) {
     
-    if (ClHookInst) {
+    /*if (ClHookInst) {
         
         size_t SourceType = TaintDataLayout->getTypeStoreSize(SI.getValueOperand()->getType());
         size_t ResultType = TaintDataLayout->getPointerTypeSize(SI.getPointerOperandType());
@@ -493,7 +493,7 @@ void MemlogPass::visitStoreInst(StoreInst &SI) {
 
         }
         
-    }
+    }*/
 
 }
 

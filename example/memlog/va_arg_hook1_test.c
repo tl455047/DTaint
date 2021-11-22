@@ -43,7 +43,7 @@ int main(int argc, char** argv)
 
     for (int i = 0; i < MAXSIZE; i++) {
        
-       if(i >= MAXSIZE - 2) {
+       if(i >= MAXSIZE - 2 && size <= 57 && size >= 48) {
 
            src[size + i] = '8';
        }

@@ -471,11 +471,11 @@ void __memlog_va_arg_hook1(u32 id, void* ptr, u32 src_type, u32 rst_type,
 
   for(int j = 0; j < logged; j++) {
     size = va_arg(args, int);
-    fprintf(stderr, "type: %d ", size);
+    //fprintf(stderr, "type: %d ", size);
     if (size <= sizeof(int))
-      fprintf(stderr, "%u ", va_arg(args, int));
+      fprintf(stderr, "idx %u ", va_arg(args, int));
     else if (size == sizeof(long long))
-      fprintf(stderr, "%p ", va_arg(args, long long));
+      fprintf(stderr, "idx: %llu ", va_arg(args, long long));
 
   }fprintf(stderr, "\n");
 
