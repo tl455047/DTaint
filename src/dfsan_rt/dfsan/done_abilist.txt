@@ -28,7 +28,6 @@ fun:dfsan_set_write_callback=uninstrumented
 fun:dfsan_set_write_callback=custom
 fun:dfsan_flush=uninstrumented
 fun:dfsan_flush=discard
-
 ###############################################################################
 # glibc
 ###############################################################################
@@ -305,3 +304,39 @@ fun:__sanitizer_cov_pcs_init=discard
 fun:__dfsw_*=uninstrumented
 fun:__dfsw_*=discard
 
+###############################################################################
+# I/O
+###############################################################################
+fun:fread=uninstrumented
+fun:fread=custom
+fun:fread_unlocked=uninstrumented
+fun:fread_unlocked=custom
+fun:fgets=uninstrumented
+fun:fgets=custom
+fun:pread=uninstrumented
+fun:pread=custom
+fun:read=uninstrumented
+fun:read=custom
+fun:fgetc=uninstrumented
+fun:fgetc=custom
+fun:fgetc_unlocked=uninstrumented
+fun:fgetc_unlocked=custom
+fun:getchar=uninstrumented
+fun:getchar=custom
+fun:getc=uninstrumented
+fun:getc=custom
+###############################################################################
+# DFSan hook extension
+###############################################################################
+fun:__dfsan_va_arg_hook1=uninstrumented
+fun:__dfsan_va_arg_hook1=discard
+fun:__dfsan_hook3=uninstrumented
+fun:__dfsan_hook3=discard
+fun:__dfsan_hook4=uninstrumented
+fun:__dfsan_hook4=discard
+fun:__dfsan_hook5=uninstrumented
+fun:__dfsan_hook5=discard
+fun:__dfsan_hook6=uninstrumented
+fun:__dfsan_hook6=discard
+fun:__dfsan_hook7=uninstrumented
+fun:__dfsan_hook7=discard

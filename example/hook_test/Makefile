@@ -14,7 +14,11 @@ afl_SRC = $(wildcard *.c)
 all: $(ELF)
 
 $(patsubst %.c, %, %.c): %.c
+ifeq ($(MEMLOG_MODE), 1)
 	$(DTAINT_CC) -mllvm -memlog-debug=1 $< -o $@
+else
+	$(DTAINT_CC) -mllvm -dtaint-debug=1 $< -o $@
+endif
 	$(AFL_CC) $< -o $(patsubst %, %_afl, $@)
 #$(CC) $< -o $(patsubst %, %_orig, $@)
 

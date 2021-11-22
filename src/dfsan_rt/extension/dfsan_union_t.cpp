@@ -288,9 +288,11 @@ dfsan_label dfsan_union_t_insert(dfsan_label_info* label_info, u32 pos) {
   union_table()[label_info->input_label].len = 1;
   union_table()[label_info->input_label].next = NULL;
   union_table()[label_info->input_label].label = label_info->last_label;
+  union_table()[label_info->input_label].tainted = offset_table(label_info->input_label);
   offset_table(label_info->input_label)->pos = pos;
   offset_table(label_info->input_label)->len = 1;
   return label_info->input_label;
+  
 }
 
 

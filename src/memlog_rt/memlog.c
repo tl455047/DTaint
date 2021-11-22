@@ -460,14 +460,15 @@ void __memlog_va_arg_hook1(u32 id, void* ptr, u32 src_type, u32 rst_type,
   va_list args;
   int size, logged;
   #ifdef MEMLOG_DEBUG
-  fprintf(stderr, "__memlog_vararg_hook1: id: %u ptr: %p src_type: %u\
-    rst_type: %u num: %u\n", id, ptr, src_type, rst_type, num_of_idx);
-    va_start(args, num_of_idx);
   
   if (num_of_idx > MEMLOG_MAXiMUM_IDX_NUM)
     logged = MEMLOG_MAXiMUM_IDX_NUM;
   else
     logged = num_of_idx;
+
+  fprintf(stderr, "__memlog_vararg_hook1: id: %u ptr: %p src_type: %u\
+    rst_type: %u num: %u\n", id, ptr, src_type, rst_type, num_of_idx);
+    va_start(args, num_of_idx);
 
   for(int j = 0; j < logged; j++) {
     size = va_arg(args, int);

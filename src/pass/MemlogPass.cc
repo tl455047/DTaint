@@ -227,7 +227,7 @@ class MemlogPass: public ModulePass, public InstVisitor<MemlogPass> {
 }
 
 unsigned MemlogPass::HookID = 0;
-const std::string MemlogPass::HookIDFileName = "/tmp/.hookID.txt";
+const std::string MemlogPass::HookIDFileName = "/tmp/.MemlogHookID.txt";
 const unsigned int MemlogPass::MemlogMapW = 65536;
 
 char MemlogPass::ID = 0;

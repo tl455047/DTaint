@@ -27,7 +27,6 @@
 
 #include "dfsan.h"
 #include "dfsan_union_t.h"
-#include "dfsan_hook.h"
 
 using namespace __dfsan;
 

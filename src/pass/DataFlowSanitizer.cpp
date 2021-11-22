@@ -180,8 +180,14 @@ static cl::opt<bool> ClEventCallbacks(
     cl::Hidden, cl::init(false));
 
 static cl::opt<bool> ClHookInst(
-    "taint-dfsan-hook-inst",
+    "dfsan-hook-inst",
     cl::desc("Insert calls to hook critical memory instructions, calls."),
+    cl::Hidden, cl::init(false));
+
+// for debug
+static cl::opt<bool> ClDebug(
+    "dtaint-debug",
+    cl::desc("Output debug message."),
     cl::Hidden, cl::init(false));
 
 static StringRef GetGlobalTypeString(const GlobalValue &G) {
@@ -345,6 +351,7 @@ class DataFlowSanitizer : public ModulePass {
   Module *Mod;
   LLVMContext *Ctx;
   IntegerType *ShadowTy;
+  IntegerType *Int32Ty;
   PointerType *ShadowPtrTy;
   IntegerType *IntptrTy;
   IntegerType *SizeTy;
@@ -380,16 +387,21 @@ class DataFlowSanitizer : public ModulePass {
   FunctionCallee DFSanStoreCallbackFn;
   FunctionCallee DFSanMemTransferCallbackFn;
   FunctionCallee DFSanCmpCallbackFn;
-
+  
   // FunctionType and FunctionCallee for hook instructions.
   // This is splitline-------------------------------------
-  FunctionType *DFSanHookDebugFnTy;
-  FunctionType *DFSanHookMallocFnTy;
-  FunctionType *DFSanHookFreeFnTy;
-
-  FunctionCallee DFSanHookDebugFn;
-  FunctionCallee DFSanHookMallocFn;
-  FunctionCallee DFSanHookFreeFn;
+  FunctionType *DFSanVaArgHook1FnTy;
+  FunctionType *DFSanHook3FnTy;
+  FunctionType *DFSanHook4FnTy;
+  FunctionType *DFSanHook5FnTy;
+  FunctionType *DFSanHook6FnTy;
+  FunctionType *DFSanHook7FnTy;
+  FunctionCallee DFSanVaArgHook1Fn;
+  FunctionCallee DFSanHook3Fn;
+  FunctionCallee DFSanHook4Fn;
+  FunctionCallee DFSanHook5Fn;
+  FunctionCallee DFSanHook6Fn;
+  FunctionCallee DFSanHook7Fn;
   // This is splitline-------------------------------------
   MDNode *ColdCallWeights;
   DFSanABIList ABIList;
@@ -483,6 +495,9 @@ public:
     return DFSF.F->getParent()->getDataLayout();
   }
 
+  static unsigned HookID;
+  static const std::string HookIDFileName;
+  static const unsigned int DtaintMapW;
   // Combines shadow values for all of I's operands. Returns the combined shadow
   // value.
   Value *visitOperandShadowInst(Instruction &I);
@@ -509,6 +524,10 @@ public:
 };
 
 } // end anonymous namespace
+
+unsigned DFSanVisitor::HookID = 0;
+const std::string DFSanVisitor::HookIDFileName = "/tmp/.DtaintHookID.txt";
+const unsigned int DFSanVisitor::DtaintMapW = 65536;
 
 char DataFlowSanitizer::ID;
 
@@ -603,6 +622,7 @@ bool DataFlowSanitizer::doInitialization(Module &M) {
   Ctx = &M.getContext();
   ShadowTy = IntegerType::get(*Ctx, ShadowWidthBits);
   ShadowPtrTy = PointerType::getUnqual(ShadowTy);
+  Int32Ty = IntegerType::get(*Ctx, 32);
   IntptrTy = DL.getIntPtrType(*Ctx);
   SizeTy = Type::getInt64Ty(*Ctx);
   ZeroShadow = ConstantInt::getSigned(ShadowTy, 0);
@@ -643,12 +663,22 @@ bool DataFlowSanitizer::doInitialization(Module &M) {
       FunctionType::get(Type::getVoidTy(*Ctx), DFSanLoadCallbackArgs, /*isVarArg=*/false);
   // FunctionType and FunctionCallee for hook instructions.
   // This is splitline-------------------------------------
-  DFSanHookDebugFnTy = 
-      FunctionType::get(Type::getVoidTy(*Ctx), {ShadowTy, SizeTy}, false);
-  DFSanHookMallocFnTy = 
-      FunctionType::get(Type::getVoidTy(*Ctx), {ShadowTy, SizeTy}, false);
-  DFSanHookFreeFnTy = 
-      FunctionType::get(Type::getVoidTy(*Ctx), {ShadowTy, Type::getInt64PtrTy(*Ctx)}, false);
+  Type *DFSanVaArgHook1Args[3] = {Int32Ty, ShadowTy, Int32Ty};
+  DFSanVaArgHook1FnTy =
+      FunctionType::get(Type::getVoidTy(*Ctx), DFSanVaArgHook1Args, true);
+  Type *DFSanHook34Args[4] = {Int32Ty, ShadowTy, ShadowTy, ShadowTy};
+  DFSanHook3FnTy = 
+      FunctionType::get(Type::getVoidTy(*Ctx), DFSanHook34Args, false);
+  DFSanHook4FnTy = 
+      FunctionType::get(Type::getVoidTy(*Ctx), DFSanHook34Args, false);
+  Type *DFSanHook56Args[2] = {Int32Ty, ShadowTy};
+  DFSanHook5FnTy = 
+      FunctionType::get(Type::getVoidTy(*Ctx), DFSanHook56Args, false);
+  DFSanHook6FnTy =
+      FunctionType::get(Type::getVoidTy(*Ctx), DFSanHook56Args, false);
+  Type *DFSanHook7Args[3] = {Int32Ty, ShadowTy, ShadowTy};
+  DFSanHook7FnTy =     
+      FunctionType::get(Type::getVoidTy(*Ctx), DFSanHook7Args, false);
   // This is splitline-------------------------------------
   if (GetArgTLSPtr) {
     Type *ArgTLSTy = ArrayType::get(ShadowTy, 64);
@@ -833,9 +863,12 @@ void DataFlowSanitizer::initializeRuntimeFunctions(Module &M) {
 
   // FunctionType and FunctionCallee for hook instructions.
   // This is splitline-------------------------------------
-  DFSanHookDebugFn = Mod->getOrInsertFunction("__hook_debug", DFSanHookDebugFnTy);
-  DFSanHookMallocFn = Mod->getOrInsertFunction("__hook_malloc", DFSanHookMallocFnTy);
-  DFSanHookFreeFn = Mod->getOrInsertFunction("__hook_free", DFSanHookFreeFnTy);
+  DFSanVaArgHook1Fn = Mod->getOrInsertFunction("__dfsan_va_arg_hook1", DFSanVaArgHook1FnTy);
+  DFSanHook3Fn = Mod->getOrInsertFunction("__dfsan_hook3", DFSanHook3FnTy);
+  DFSanHook4Fn = Mod->getOrInsertFunction("__dfsan_hook4", DFSanHook4FnTy);
+  DFSanHook5Fn = Mod->getOrInsertFunction("__dfsan_hook5", DFSanHook5FnTy);
+  DFSanHook6Fn = Mod->getOrInsertFunction("__dfsan_hook6", DFSanHook6FnTy);
+  DFSanHook7Fn = Mod->getOrInsertFunction("__dfsan_hook7", DFSanHook7FnTy);
   // This is splitline-------------------------------------
 }
 
@@ -1278,6 +1311,7 @@ Value *DFSanFunction::combineOperandShadows(Instruction *Inst) {
   for (unsigned i = 1, n = Inst->getNumOperands(); i != n; ++i) {
     Shadow = combineShadows(Shadow, getShadow(Inst->getOperand(i)), Inst);
   }
+  
   return Shadow;
 }
 
@@ -1535,7 +1569,28 @@ void DFSanVisitor::visitCmpInst(CmpInst &CI) {
 }
 
 void DFSanVisitor::visitGetElementPtrInst(GetElementPtrInst &GEPI) {
+
+  // append to hook certain instructionsd
+  if (ClHookInst) {
+    
+      if (ClDebug)
+          errs() << "hook GetElementPtr id: " << HookID << "\n";
+  
+      std::vector<Value *> ArgArray;
+      ArgArray.push_back(ConstantInt::get(DFSF.DFS.Int32Ty, HookID++));
+      ArgArray.push_back(DFSF.getShadow(GEPI.getOperand(0)));
+      ArgArray.push_back(ConstantInt::get(DFSF.DFS.Int32Ty, GEPI.getNumIndices()));
+      for (User::op_iterator it = GEPI.idx_begin(); it != GEPI.idx_end(); it++) {
+          ArgArray.push_back(DFSF.getShadow(*it));
+      }
+
+      IRBuilder<> IRB(&GEPI);
+      IRB.CreateCall(DFSF.DFS.DFSanVaArgHook1Fn, ArgArray);
+
+  }
+  
   visitOperandShadowInst(GEPI);
+
 }
 
 void DFSanVisitor::visitExtractElementInst(ExtractElementInst &I) {
@@ -1603,6 +1658,22 @@ void DFSanVisitor::visitSelectInst(SelectInst &I) {
 
 void DFSanVisitor::visitMemSetInst(MemSetInst &I) {
   IRBuilder<> IRB(&I);
+
+  if (ClHookInst) {
+
+      if (ClDebug)
+          errs() << "hook MemSetInst id: " << HookID << "\n";
+      
+      std::vector<Value *> ArgArray;
+      ArgArray.push_back(ConstantInt::get(DFSF.DFS.Int32Ty, HookID++));
+      for (User::op_iterator it = I.arg_begin(); it != I.arg_end(); it++) {
+        ArgArray.push_back(DFSF.getShadow(*it));
+      }
+
+      IRB.CreateCall(DFSF.DFS.DFSanHook3Fn, ArgArray);
+
+  }
+
   Value *ValShadow = DFSF.getShadow(I.getValue());
   IRB.CreateCall(DFSF.DFS.DFSanSetLabelFn,
                  {ValShadow, IRB.CreateBitCast(I.getDest(), Type::getInt8PtrTy(
@@ -1666,33 +1737,12 @@ void DFSanVisitor::visitCallBase(CallBase &CB) {
     return;
   }
 
-  IRBuilder<> IRB(&CB);
-
-  /**
-   * Let's hook Call instructions. Is this correct insert position?
-   * 
-   */
-  // FunctionType and FunctionCallee for hook instructions.
-  // This is splitline-------------------------------------
-  if(ClHookInst) {
-    if(F && F->getName() == "dfsw$malloc") {
-      errs()<<"hook "<<F->getName()<<"\n";
-      Value *Arg = CB.getArgOperand(0);
-      //IRB.CreateCall(DFSF.DFS.DFSanHookMallocFn, {DFSF.getShadow(Arg), Arg});
-    }
-    else if(F && F->getName() == "dfsw$free") {
-      errs()<<"hook "<<F->getName()<<"\n";
-      Value *Arg = CB.getArgOperand(0);
-      //IRB.CreateCall(DFSF.DFS.DFSanHookFreeFn, {DFSF.getShadow(Arg), Arg});
-    }
-  }
-  // This is splitline-------------------------------------
   // Calls to this function are synthesized in wrappers, and we shouldn't
   // instrument them.
   if (F == DFSF.DFS.DFSanVarargWrapperFn.getCallee()->stripPointerCasts())
     return;
 
-  //IRBuilder<> IRB(&CB);
+  IRBuilder<> IRB(&CB);
 
   DenseMap<Value *, Function *>::iterator i =
       DFSF.DFS.UnwrappedFnMap.find(CB.getCalledOperand());

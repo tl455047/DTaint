@@ -104,6 +104,9 @@ static void dfsan_pass() {
   cc_params[cc_par_cnt++] = "-mllvm";
   cc_params[cc_par_cnt++] = "-taint-dfsan-combine-pointer-labels-on-store=1";
 
+  cc_params[cc_par_cnt++] = "-mllvm";
+  cc_params[cc_par_cnt++] = "-dfsan-hook-inst=1";
+
 }
 
 static void memlog_runtime() {
@@ -145,6 +148,21 @@ static void link_constructor() {
   
 }
 
+static void hook_id_cpy() {
+  // In order to make sure MemlogPass and DFSanPass hook same instructions 
+  // with same HookID.
+  char buf[8];
+  memset(buf, 0, 8);
+  
+  FILE* memlog_f = fopen("/tmp/.MemlogHookID.txt", "r");
+  fread(buf, 1, sizeof(unsigned int), memlog_f);
+  fclose(memlog_f);
+
+  FILE* dfsan_f = fopen("/tmp/.DtaintHookID.txt", "w+");
+  fwrite(buf, 1, sizeof(unsigned int), dfsan_f);
+  fclose(dfsan_f);
+
+}
 /* Copy argv to cc_params, making the necessary edits. */
 
 static void edit_params(u32 argc, char** argv) {
@@ -276,6 +294,7 @@ static void edit_params(u32 argc, char** argv) {
 
   if(getenv("MEMLOG_MODE")) {
     memlog_pass();
+    hook_id_cpy();
   }
   else {
     dfsan_pass();

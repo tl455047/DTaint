@@ -5,6 +5,8 @@ include_directories(../extension/include)
 include_directories(../sanitizer_common)
 include_directories(../../afl_rt/include)
 
+option(DTAINT_DEBUG "DTaint Debugging" OFF)
+
 # Runtime library sources and build flags.
 set(DFSAN_RTL_SOURCES
   dfsan.cpp
@@ -33,6 +35,7 @@ add_compiler_rt_component(dfsan)
 foreach(arch ${DFSAN_SUPPORTED_ARCH})
   set(DFSAN_CFLAGS ${DFSAN_COMMON_CFLAGS})
   append_list_if(COMPILER_RT_HAS_FPIE_FLAG -fPIE DFSAN_CFLAGS)
+  append_list_if(DTAINT_DEBUG -DDTAINT_DEBUG DFSAN_CFLAGS) #dtaint debug option
   add_compiler_rt_runtime(clang_rt.dfsan
     STATIC
     ARCHS ${arch}
@@ -66,7 +69,3 @@ add_custom_command(OUTPUT ${dfsan_abilist_filename}
 add_dependencies(dfsan dfsan_abilist)
 install(FILES ${dfsan_abilist_filename}
         DESTINATION ${COMPILER_RT_INSTALL_PATH}/share)
-
-
-option(DTAINT_DEBUG "DTaint Debugging" OFF)
-append_list_if(DTAINT_DEBUG -DFSAN_CFLAGS)

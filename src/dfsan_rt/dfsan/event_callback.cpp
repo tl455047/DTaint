@@ -1,7 +1,6 @@
 #include <stdio.h>
 #include "dfsan.h"
 #include "dfsan_union_t.h"
-#include "dfsan_hook.h"
 #include "sanitizer_common/sanitizer_common.h"
 
 extern struct dfsan_label_info __dfsan_label_info;

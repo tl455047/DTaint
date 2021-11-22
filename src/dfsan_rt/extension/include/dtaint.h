@@ -1,8 +1,9 @@
 #ifndef _DTAINT_H_
 #define _DTAINT_H_
+
 #define DTAINT_MAP_W 2 << 16
 #define DTAINT_MAP_H 32
-
+#define DTAINT_MAXiMUM_IDX_NUM 8
 
 enum DFSanHookType {
 
@@ -37,21 +38,6 @@ enum DFSanHookType {
 
 };
 
-struct dtaint_header {
-  
-  // instructions executed
-  unsigned int hits;
-  // unique id
-  unsigned int id;
-  //total tainted bytes
-  unsigned int tainted_bytes;
-  // num of node
-  unsigned int num;
-  //type
-  unsigned int type;
-  
-} __attribute__((packed));
-
 struct dtainted {
 
   unsigned int pos;
@@ -59,10 +45,58 @@ struct dtainted {
 
 } __attribute__((packed));
 
+
+struct dtaint_offset_node {
+  
+  //total tainted bytes
+  unsigned int len;
+  // num of node
+  unsigned int num;
+
+} __attribute__((packed));
+
+struct va_arg_label_t {
+
+  unsigned int num;
+  unsigned int ptr_label;
+  unsigned int idx_label[DTAINT_MAXiMUM_IDX_NUM];
+
+} __attribute__((packed));
+
+struct label_t {
+
+  unsigned int   src_label;
+  unsigned int   dst_label;
+  unsigned int  size_label;
+  unsigned int value_label;
+
+};
+
+union dtaint_label_t {
+
+  struct va_arg_label_t __va_arg_label_t;
+  struct label_t __label_t;
+
+};
+
+struct dtaint_header {
+  
+  // instructions executed
+  unsigned int hits;
+  // unique id
+  unsigned int id;
+  //type
+  unsigned int type;
+  //label array
+  
+} __attribute__((packed));
+
 struct dtaint_map {
   
   struct dtaint_header headers[DTAINT_MAP_W];
-  struct dtainted log[DTAINT_MAP_W][DTAINT_MAP_H]; 
+  union dtaint_label_t log[DTAINT_MAP_W][DTAINT_MAP_H]; 
+  struct dtaint_offset_node label_info[DTAINT_MAP_W];
+  struct dtainted offset_t[DTAINT_MAP_W][DTAINT_MAP_H]; 
 
 };
 
