@@ -1,0 +1,1 @@
+eelf_i386.c: ./emulparams/elf_i386.sh ./emulparams/plt_unwind.sh ./emulparams/extern_protected_data.sh ./emulparams/dynamic_undefined_weak.sh ./emulparams/call_nop.sh ./emulparams/cet.sh ./emulparams/x86-report-relative.sh ./emulparams/x86-64-level.sh ./emulparams/static.sh ./scripttempl/elf.sc ./emultempl/elf.em ./emultempl/elf-generic.em ./emultempl/elf-x86.em

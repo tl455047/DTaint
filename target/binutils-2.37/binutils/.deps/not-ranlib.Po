@@ -1,0 +1,1 @@
+not-ranlib.o: not-ranlib.c

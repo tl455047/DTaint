@@ -1,6 +1,10 @@
 .gdb_history
-/testcase/*
-/build*
+/target/*
+/build/*
 .vscode
-/.vscode*
+/.vscode/*
 .gitignore
+/test/hook_test/*_test
+/test/target
+/test/test
+/test/environment/*_test
