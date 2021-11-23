@@ -1,7 +1,0 @@
-flonum-mult.o: flonum-mult.c ../include/ansidecl.h flonum.h bignum.h
-
-../include/ansidecl.h:
-
-flonum.h:
-
-bignum.h:

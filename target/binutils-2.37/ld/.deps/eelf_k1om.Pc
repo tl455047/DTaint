@@ -1,1 +1,0 @@
-eelf_k1om.c: ./emulparams/elf_k1om.sh ./emulparams/plt_unwind.sh ./emulparams/extern_protected_data.sh ./emulparams/dynamic_undefined_weak.sh ./emulparams/call_nop.sh ./scripttempl/elf.sc ./emultempl/elf.em ./emultempl/elf-generic.em ./emultempl/elf-x86.em
