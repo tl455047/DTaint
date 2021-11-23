@@ -1,6 +1,6 @@
 list(INSERT CMAKE_MODULE_PATH 0 "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 
-set(COMPILER_RT_OUTPUT_DIR ${TAINT_LIB_DIR} CACHE PATH
+set(COMPILER_RT_OUTPUT_DIR ${DTAINT_LIB_DIR} CACHE PATH
 "Path where built compiler-rt libraries should be stored.")
 set(COMPILER_RT_EXEC_OUTPUT_DIR ${CMAKE_CURRENT_BINARY_DIR}/bin CACHE PATH
 "Path where built compiler-rt executables should be stored.")
@@ -9,7 +9,7 @@ set(COMPILER_RT_INSTALL_PATH ${CMAKE_INSTALL_PREFIX} CACHE PATH
 "Path where built compiler-rt libraries should be installed.")
 
 set(COMPILER_RT_LIBRARY_OUTPUT_DIR ${COMPILER_RT_OUTPUT_DIR})
-set(COMPILER_RT_LIBRARY_INSTALL_DIR ${TAINT_LIB_DIR})
+set(COMPILER_RT_LIBRARY_INSTALL_DIR ${DTAINT_LIB_DIR})
 
 
 set(ARM64 aarch64)

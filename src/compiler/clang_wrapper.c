@@ -18,7 +18,6 @@ static u8*  obj_path;               /* Path to runtime libraries         */
 static u8** cc_params;              /* Parameters passed to the real CC  */
 static u32  cc_par_cnt = 1;         /* Param count, including argv0      */
 
-
 /* Try to find the runtime libraries. If that fails, abort. */
 
 static void find_obj(u8* argv0) {
@@ -35,7 +34,7 @@ static void find_obj(u8* argv0) {
     dir = ck_strdup(argv0);
     *slash = '/';
 
-    tmp = alloc_printf("%s/pass/libTaintPass.so", dir);
+    tmp = alloc_printf("%s/pass/libDFSanPass.so", dir);
 
     if (!access(tmp, R_OK)) {
       obj_path = dir;
@@ -84,28 +83,31 @@ static void dfsan_pass() {
   cc_params[cc_par_cnt++] = alloc_printf("%s/pass/libDFSanPass.so", obj_path);
   cc_params[cc_par_cnt++] = "-mllvm";
   cc_params[cc_par_cnt++] =  
-        alloc_printf("-taint-dfsan-abilist=%s/lib/share/dfsan_abilist.txt", obj_path);
+        alloc_printf("-dtaint-dfsan-abilist=%s/lib/share/dfsan_abilist.txt", obj_path);
+  
   /*cc_params[cc_par_cnt++] = "-mllvm";
   cc_params[cc_par_cnt++] =  
-        alloc_printf("-taint-dfsan-abilist=%s/lib/share/taint_abilist.txt", obj_path);*/
-  cc_params[cc_par_cnt++] = "-mllvm";
-  cc_params[cc_par_cnt++] =  
-        alloc_printf("-taint-dfsan-abilist=%s/lib/share/libexif_abilist.txt", obj_path);
+        alloc_printf("-dtaint-dfsan-abilist=%s/lib/share/libexif_abilist.txt", obj_path);*/
   /**
    * After llvm-10, DFSan supports callback for load, store, mem transfer, and cmp.
    * Enable with argument -taint-dfsan-event-callbacks. 
    */
   //cc_params[cc_par_cnt++] = "-mllvm";
   //cc_params[cc_par_cnt++] = "-taint-dfsan-event-callbacks=1";
-  cc_params[cc_par_cnt++] = "-mllvm";
+  /*cc_params[cc_par_cnt++] = "-mllvm";
   cc_params[cc_par_cnt++] =  
-        alloc_printf("-taint-dfsan-abilist=%s/lib/share/openjpeg_abilist.txt", obj_path);
+        alloc_printf("-dtaint-dfsan-abilist=%s/lib/share/openjpeg_abilist.txt", obj_path);*/
 
   cc_params[cc_par_cnt++] = "-mllvm";
-  cc_params[cc_par_cnt++] = "-taint-dfsan-combine-pointer-labels-on-store=1";
+  cc_params[cc_par_cnt++] = "-dtaint-dfsan-combine-pointer-labels-on-store=1";
 
   cc_params[cc_par_cnt++] = "-mllvm";
-  cc_params[cc_par_cnt++] = "-dfsan-hook-inst=1";
+  cc_params[cc_par_cnt++] = "-dtaint-dfsan-hook-inst=1";
+
+  cc_params[cc_par_cnt++] = "-mllvm";
+  cc_params[cc_par_cnt++] = 
+        alloc_printf("-dtaint-dfsan-hook-abilist=%s/lib/share/hook_abilist.txt", obj_path);
+ 
 
 }
 
@@ -122,7 +124,6 @@ static void memlog_runtime() {
 }
 
 static void dfsan_runtime() {
-
   cc_params[cc_par_cnt++] = "-Wl,--whole-archive";
   cc_params[cc_par_cnt++] = alloc_printf("%s/lib/libclang_rt.dfsan-x86_64.a", obj_path);
   cc_params[cc_par_cnt++] = "-Wl,--no-whole-archive";
@@ -148,20 +149,19 @@ static void link_constructor() {
   
 }
 
-static void hook_id_cpy() {
+
+static void sync_hook_id(char *dst, char *src) {
   // In order to make sure MemlogPass and DFSanPass hook same instructions 
   // with same HookID.
   char buf[8];
   memset(buf, 0, 8);
-  
-  FILE* memlog_f = fopen("/tmp/.MemlogHookID.txt", "r");
-  fread(buf, 1, sizeof(unsigned int), memlog_f);
-  fclose(memlog_f);
+  FILE* src_f = fopen(src, "r");
+  fread(buf, 1, sizeof(unsigned int), src_f);
+  fclose(src_f);
 
-  FILE* dfsan_f = fopen("/tmp/.DtaintHookID.txt", "w+");
-  fwrite(buf, 1, sizeof(unsigned int), dfsan_f);
-  fclose(dfsan_f);
-
+  FILE* dst_f = fopen(dst, "w+");
+  fwrite(buf, 1, sizeof(unsigned int), dst_f);
+  fclose(dst_f);
 }
 /* Copy argv to cc_params, making the necessary edits. */
 
@@ -291,17 +291,28 @@ static void edit_params(u32 argc, char** argv) {
     cc_params[cc_par_cnt++] = "-funroll-loops";
   }
   
-
-  if(getenv("MEMLOG_MODE")) {
+  if (getenv("MEMLOG_MODE")) {
     memlog_pass();
-    hook_id_cpy();
+    memlog_runtime();
   }
   else {
     dfsan_pass();
+    dfsan_runtime();
   }
-  dfsan_runtime();
-  memlog_runtime();
+  
   afl_runtime();
+  
+  /*if (getenv("SYNC_HOOK_ID")) {
+    fprintf(stderr, "sync_hook_id\n");
+    if (getenv("MEMLOG_MODE")) {
+      sync_hook_id("/tmp/.DtaintHookID.txt", "/tmp/.MemlogHookID.txt");
+    }
+    else {
+      sync_hook_id("/tmp/.MemlogHookID.txt", "/tmp/.DtaintHookID.txt");
+    }
+    unsetenv("SYNC_HOOK_ID");
+  }*/
+  
   /**
    * Enable pie since dfsan maps shadow memory at 0x10000-0x200200000000, 
    * pie is needed to prevent overlapped.
@@ -309,11 +320,7 @@ static void edit_params(u32 argc, char** argv) {
   cc_params[cc_par_cnt++] = "-fPIE";
   cc_params[cc_par_cnt++] = "-fPIC";
   cc_params[cc_par_cnt++] = "-pie";
-
-
-  link_constructor();
-
- 
+  
   /*if (getenv("TAINT_NO_BUILTIN")) {
 
     cc_params[cc_par_cnt++] = "-fno-builtin-strcmp";
@@ -458,14 +465,8 @@ int main(int argc, char** argv) {
 
   print_cmdline(argc);
 
-   /**
-   * Set environment variable DFSAN_OPTIONS for DFSan debugging.
-   * dump_labels_at_exit selects the path for dumping label info.
-   */
-  setenv("DFSAN_OPTIONS", "dump_labels_at_exit=dump.txt", 1);
   
   execvp(cc_params[0], (char**)cc_params);
-
  
   FATAL("Oops, failed to execute '%s' - check your PATH", cc_params[0]);
 

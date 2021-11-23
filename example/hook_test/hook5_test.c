@@ -37,7 +37,7 @@ int main(int argc, char** argv)
     
     fclose(f);
 
-    size = (unsigned char)src[1];
+    size = (unsigned char)src[1] + (unsigned char)src[5];
     dst = malloc(size);
 
     fprintf(stderr, "dst: %p size: %d\n", dst, size);

@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.1)
 
-project(dora_taint)
+project(dtaint)
 
 set( CMAKE_EXPORT_COMPILE_COMMANDS 1 )
 find_package(LLVM REQUIRED CONFIG)
@@ -9,5 +9,4 @@ find_package(LLVM REQUIRED CONFIG)
 #link_directories(${LLVM_LIBRARY_DIRS})
 
 add_subdirectory(src)
-
 

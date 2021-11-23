@@ -340,3 +340,24 @@ fun:__dfsan_hook6=uninstrumented
 fun:__dfsan_hook6=discard
 fun:__dfsan_hook7=uninstrumented
 fun:__dfsan_hook7=discard
+###############################################################################
+# I/O hook extension
+###############################################################################
+fun:fread=uninstrumented
+fun:fread=custom
+fun:fread_unlocked=uninstrumented
+fun:fread_unlocked=custom
+fun:fgets=uninstrumented
+fun:fgets=custom
+fun:pread=uninstrumented
+fun:pread=custom
+fun:read=uninstrumented
+fun:read=custom
+fun:fgetc=uninstrumented
+fun:fgetc=custom
+fun:fgetc_unlocked=uninstrumented
+fun:fgetc_unlocked=custom
+fun:getchar=uninstrumented
+fun:getchar=custom
+fun:getc=uninstrumented
+fun:getc=custom

@@ -383,10 +383,9 @@ void __dfsan_hook7 (unsigned id, dfsan_label ptr_label, dfsan_label size_label) 
 extern "C" __attribute__((visibility("default")))
 void __dfsan_va_arg_hook1 (unsigned id, dfsan_label ptr_label, unsigned num_of_idx, ...) {
 
-  #ifdef DTAINT_DEBUG
   va_list args;
   int size, logged;
-  
+  #ifdef DTAINT_DEBUG
   fprintf(stderr, "__dfsan_vararg_hook1: id: %u ptr_label: %u, num: %u\n", 
   id, ptr_label, num_of_idx);
 

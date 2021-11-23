@@ -52,7 +52,7 @@ void __memlog_debug_output() {
           __afl_memlog_map->log[i][0].__hook_va_arg.num,
           __afl_memlog_map->log[i][0].__hook_va_arg.ptr);
 
-        unsigned int *p = __afl_memlog_map->log[i][0].__hook_va_arg.idx;
+        unsigned long long *p = __afl_memlog_map->log[i][0].__hook_va_arg.idx;
         for (int j = 0; j < __afl_memlog_map->log[i][0].__hook_va_arg.num; j++) {
           fprintf(stderr, "%u ", p[j]);
         }fprintf(stderr, "\n");
@@ -514,7 +514,7 @@ void __memlog_va_arg_hook1(u32 id, void* ptr, u32 src_type, u32 rst_type,
   __afl_memlog_map->log[id][hits].__hook_va_arg.num = logged;
   __afl_memlog_map->log[id][hits].__hook_va_arg.ptr = ptr;
   
-  unsigned *p = __afl_memlog_map->log[id][hits].__hook_va_arg.idx;
+  unsigned long long *p = __afl_memlog_map->log[id][hits].__hook_va_arg.idx;
   va_start(args, num_of_idx);
   for(int i = 0; i < logged; i++) {
     

@@ -1,0 +1,27 @@
+###############################################################################
+# Hook functions
+###############################################################################
+fun:malloc=hook
+fun:malloc=hook6
+fun:free=hook
+fun:free=hook7
+fun:realloc=hook
+fun:realloc=hook8
+fun:calloc=hook
+fun:calloc=hook5
+
+fun:memcpy=hook
+fun:memcpy=hook4
+fun:memset=hook
+fun:memset=hook3
+fun:memmove=hook
+fun:memmove=hook4
+fun:memcmp=hook
+fun:memcmp=hook4
+
+fun:strncat=hook
+fun:strncat=hook4
+fun:strncmp=hook
+fun:strncmp=hook4
+fun:strncpy=hook
+fun:strncpy=hook4

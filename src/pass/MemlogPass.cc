@@ -17,12 +17,12 @@ using namespace llvm;
 static cl::opt<bool> ClHookInst(
     "memlog-hook-inst",
     cl::desc("Insert calls to hook critical memory instructions, calls."),
-    cl::Hidden, cl::init(false));
+    cl::Hidden, cl::init(true));
 
 // for hook API list
 static cl::list<std::string> ClABIListFiles(
     "memlog-hook-abilist",
-    cl::desc("File listing native ABI functions and how the pass hooks them"),
+    cl::desc("File listing native ABI functions and how the pass hooks them."),
     cl::Hidden);
 
 // for debug
@@ -183,17 +183,6 @@ class MemlogPass: public ModulePass, public InstVisitor<MemlogPass> {
         bool shouldHook(const Function *F);
         HookType getHookType(const Function *F);
         void whichType(Type *T);
-        //memlog hook function
-        void memlogHook1(CallBase &CB);
-        void memlogHook2(CallBase &CB);
-        void memlogHook3(CallBase &CB);
-        void memlogHook4(CallBase &CB);
-        void memlogHook5(CallBase &CB);
-        void memlogHook6(CallBase &CB);
-        void memlogHook7(CallBase &CB);
-        void memlogHook8(CallBase &CB);
-        void memlogVaArgHook1(CallBase &CB);
-
         // visitor override
         void visitLoadInst(LoadInst &LI);
         void visitStoreInst(StoreInst &SI);
@@ -299,8 +288,17 @@ bool MemlogPass::runOnModule(Module &M) {
 
   
     for (Function &F : M) {
-   
-        visit(F);   
+    
+        if (!F.isIntrinsic() && 
+                &F != MemlogHook1Func.getCallee()->stripPointerCasts() &&
+                &F != MemlogHook2Func.getCallee()->stripPointerCasts() &&
+                &F != MemlogHook3Func.getCallee()->stripPointerCasts() &&
+                &F != MemlogHook4Func.getCallee()->stripPointerCasts() &&
+                &F != MemlogHook5Func.getCallee()->stripPointerCasts() &&
+                &F != MemlogHook6Func.getCallee()->stripPointerCasts() &&
+                &F != MemlogHook7Func.getCallee()->stripPointerCasts() &&
+                &F != MemlogVaArgHook1Func.getCallee()->stripPointerCasts())
+            visit(F);   
         
     }
 
@@ -338,101 +336,6 @@ MemlogPass::HookType MemlogPass::getHookType(const Function *F) {
     return HT_UNKNOWN;
 
 }
-
-/**
- * __memlog_hook1 (void* ptr, u8 src_type, u8 rst_type);
- * ex. load inst.
- */
-void MemlogPass::memlogHook1(CallBase &CB) {
-
-}
-
-/**
- * __memlog_hook2 (size_t value, int src_type, void* ptr, int rst_type);
- * ex. store inst.
- */
-void MemlogPass::memlogHook2(CallBase &CB) {
-
-}
-
-/**
- * __memlog_hook3 (void* ptr, int c, size_t size);
- * ex. memset
- */
-void MemlogPass::memlogHook3(CallBase &CB) {
-
-    if (ClDebug)
-        errs() << "memloghook3\n"; 
-    IRBuilder <> IRB(&CB);
-    IRB.CreateCall(MemlogHook3Func, {ConstantInt::get(Int32Ty, HookID++), 
-        CB.getArgOperand(0), CB.getArgOperand(1), CB.getArgOperand(2)});
-
-}
-
-/**
- * __memlog_hook4 (void* dst, void* src, size_t size);
- * ex. memcpy
- */
-void MemlogPass::memlogHook4(CallBase &CB) {
-     
-    if (ClDebug)
-        errs() << "memloghook4\n"; 
-    IRBuilder <> IRB(&CB);
-    IRB.CreateCall(MemlogHook4Func, {ConstantInt::get(Int32Ty, HookID++),
-        CB.getArgOperand(0), CB.getArgOperand(1), CB.getArgOperand(2)});
-
-}
-
-/**
- * __memlog_hook5 (size_t size);
- * ex. malloc
- */
-void MemlogPass::memlogHook5(CallBase &CB) {
-
-    if (ClDebug)
-        errs() << "memloghook5\n"; 
-    IRBuilder <> IRB(&CB);
-    IRB.CreateCall(MemlogHook5Func, {ConstantInt::get(Int32Ty, HookID++), 
-        CB.getArgOperand(0)});
-
-}
-
-/**
- * __memlog_hook6 (void* ptr);
- * ex. free
- */
-void MemlogPass::memlogHook6(CallBase &CB) {
-    
-    if (ClDebug)
-        errs() << "memloghook6\n";
-    IRBuilder <> IRB(&CB);
-    IRB.CreateCall(MemlogHook6Func, {ConstantInt::get(Int32Ty, HookID++), 
-        CB.getArgOperand(0)});
-
-}
-
-/**
- * __memlog_hook7 (void* ptr, size_t size);
- * ex. realloc
- */
-void MemlogPass::memlogHook7(CallBase &CB) {
-    
-    if (ClDebug)
-        errs() << "memloghook7\n"; 
-    IRBuilder <> IRB(&CB);
-    IRB.CreateCall(MemlogHook7Func, {ConstantInt::get(Int32Ty, HookID++), 
-        CB.getArgOperand(0), CB.getArgOperand(1)});
-
-}
-
-/**
- * __memlog_vararg_hook1 (void* ptr, size_t size, size_t num_of_args, ...);
- * ex. get_element_ptr inst.
- */
-void MemlogPass::memlogVaArgHook1(CallBase &CB) {
-
-}
-
 
 void MemlogPass::whichType(Type *T) {
 
@@ -505,30 +408,34 @@ void MemlogPass::visitCallBase(CallBase &CB) {
         if (ClDebug)
           errs() << "hook "<< F->getName() << "\n"; 
         
+        IRBuilder <> IRB(&CB);
+        std::vector<Value *> ArgArray;
+        ArgArray.push_back(ConstantInt::get(Int32Ty, HookID++));
+        for (User::op_iterator it = CB.arg_begin(); it != CB.arg_end(); it++) {
+            ArgArray.push_back(*it);
+        }
+
         switch(getHookType(F)) {
             case HT_HOOK1:
-                memlogHook1(CB);
+                IRB.CreateCall(MemlogHook1Func, ArgArray);
                 break;
             case HT_HOOK2:
-                memlogHook2(CB);
+                IRB.CreateCall(MemlogHook2Func, ArgArray);
                 break;
             case HT_HOOK3:
-                memlogHook3(CB);
+                IRB.CreateCall(MemlogHook3Func, ArgArray);
                 break;
             case HT_HOOK4:
-                memlogHook4(CB);
+                IRB.CreateCall(MemlogHook4Func, ArgArray);
                 break;
             case HT_HOOK5:
-                memlogHook5(CB);
+                IRB.CreateCall(MemlogHook5Func, ArgArray);
                 break;
             case HT_HOOK6:
-                memlogHook6(CB);
+                IRB.CreateCall(MemlogHook6Func, ArgArray);
                 break;
             case HT_HOOK7:
-                memlogHook7(CB);
-                break;
-            case HT_VARARG_HOOK1:
-                memlogVaArgHook1(CB);
+                IRB.CreateCall(MemlogHook7Func, ArgArray);
                 break;
             default:
                 break;
@@ -592,8 +499,12 @@ void MemlogPass::visitMemSetInst(MemSetInst &I) {
             errs() << "hook MemSetInst id: " << HookID << "\n";
 
         IRBuilder <> IRB(&I);
-        IRB.CreateCall(MemlogHook3Func, {ConstantInt::get(Int32Ty, HookID++), I.getArgOperand(0),
-            I.getArgOperand(1), I.getArgOperand(2)});
+        std::vector<Value *> ArgArray;
+        ArgArray.push_back(ConstantInt::get(Int32Ty, HookID++));
+        for (User::op_iterator it = I.arg_begin(); it != I.arg_end(); it++) {
+            ArgArray.push_back(*it);
+        }
+        IRB.CreateCall(MemlogHook3Func, ArgArray);
 
     }
 
@@ -607,9 +518,12 @@ void MemlogPass::visitMemCpyInst(MemCpyInst &I) {
             errs() << "hook MemCpyInst id: " << HookID << "\n";
 
         IRBuilder <> IRB(&I);
-        IRB.CreateCall(MemlogHook4Func, {ConstantInt::get(Int32Ty, HookID++), I.getArgOperand(0),
-            I.getArgOperand(1), I.getArgOperand(2)});
-
+        std::vector<Value *> ArgArray;
+        ArgArray.push_back(ConstantInt::get(Int32Ty, HookID++));
+        for (User::op_iterator it = I.arg_begin(); it != I.arg_end(); it++) {
+            ArgArray.push_back(*it);
+        }
+        IRB.CreateCall(MemlogHook4Func, ArgArray);
     }
 
 }
@@ -622,8 +536,12 @@ void MemlogPass::visitMemCpyInlineInst(MemCpyInlineInst &I) {
             errs() << "hook MemCpyInlineInst id: " << HookID << "\n";
         
         IRBuilder <> IRB(&I);
-        IRB.CreateCall(MemlogHook4Func, {ConstantInt::get(Int32Ty, HookID++), I.getArgOperand(0),
-            I.getArgOperand(1), I.getArgOperand(2)}); 
+        std::vector<Value *> ArgArray;
+        ArgArray.push_back(ConstantInt::get(Int32Ty, HookID++));
+        for (User::op_iterator it = I.arg_begin(); it != I.arg_end(); it++) {
+            ArgArray.push_back(*it);
+        }
+        IRB.CreateCall(MemlogHook4Func, ArgArray);
 
     }
 
@@ -637,9 +555,12 @@ void MemlogPass::visitMemMoveInst(MemMoveInst &I) {
             errs() << "hook MemMoveInst id: " << HookID << "\n";
 
         IRBuilder <> IRB(&I);
-        IRB.CreateCall(MemlogHook4Func, {ConstantInt::get(Int32Ty, HookID++), I.getArgOperand(0),
-            I.getArgOperand(1), I.getArgOperand(2)});
-
+        std::vector<Value *> ArgArray;
+        ArgArray.push_back(ConstantInt::get(Int32Ty, HookID++));
+        for (User::op_iterator it = I.arg_begin(); it != I.arg_end(); it++) {
+            ArgArray.push_back(*it);
+        }
+        IRB.CreateCall(MemlogHook4Func, ArgArray);
     }
 
 }
@@ -647,7 +568,7 @@ void MemlogPass::visitMemMoveInst(MemMoveInst &I) {
 // C++ allocator
 void MemlogPass::visitAllocaInst(AllocaInst &I) {
     
-    if (ClHookInst) {
+    /*if (ClHookInst) {
 
         size_t AllocatedType = TaintDataLayout->getTypeAllocSize(I.getAllocatedType());
 
@@ -655,7 +576,7 @@ void MemlogPass::visitAllocaInst(AllocaInst &I) {
         IRB.CreateCall(MemlogHook5Func, {ConstantInt::get(Int32Ty, HookID++), ConstantInt::get(Int32Ty, AllocatedType),
             I.getArraySize()});
 
-    }
+    }*/
 
 }
 /**

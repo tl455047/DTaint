@@ -9,6 +9,6 @@ include_directories(../memlog_rt/include)
 
 set_target_properties(afl_rt 
     PROPERTIES
-    ARCHIVE_OUTPUT_DIRECTORY "${TAINT_LIB_DIR}"
+    ARCHIVE_OUTPUT_DIRECTORY "${DTAINT_LIB_DIR}"
     COMPILE_FLAGS "-funroll-loops -fPIC -fPIE -O3 -Wall -D_FORTIFY_SOURCE=2 -g -Wno-pointer-sign"
 )

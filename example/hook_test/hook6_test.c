@@ -37,7 +37,7 @@ int main(int argc, char** argv)
     
     fclose(f);
 
-    size = (unsigned char)src[1];
+    size = (unsigned char)src[1] + (unsigned char)src[4];
     dst = malloc(MAXSIZE);
 
     fprintf(stderr, "dst: %p size: %d\n", dst, size);
@@ -49,7 +49,7 @@ int main(int argc, char** argv)
         
     }
 
-    free(dst + size);
+    free(dst);
     
     return 0;
 

@@ -38,7 +38,7 @@ int main(int argc, char** argv)
     fclose(f);
 
     value = (unsigned char)src[0];
-    size = (unsigned char)src[1];
+    size = (unsigned char)src[0] + (unsigned char)src[1];
 
     fprintf(stderr, "value: %d size: %d\n", value, size);
     

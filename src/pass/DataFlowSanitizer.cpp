@@ -95,6 +95,7 @@
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
+#include <fstream>
 #include <iterator>
 #include <memory>
 #include <set>
@@ -119,7 +120,7 @@ static const char *const kDFSanExternShadowPtrMask = "__dfsan_shadow_ptr_mask";
 // we have unfortunately encountered too much code (including Clang itself;
 // see PR14291) which performs misaligned access.
 static cl::opt<bool> ClPreserveAlignment(
-    "taint-dfsan-preserve-alignment",
+    "dtaint-dfsan-preserve-alignment",
     cl::desc("respect alignment requirements provided by input IR"), cl::Hidden,
     cl::init(false));
 
@@ -131,21 +132,21 @@ static cl::opt<bool> ClPreserveAlignment(
 // unknown.  The other supported annotations are "functional" and "discard",
 // which are described below under DataFlowSanitizer::WrapperKind.
 static cl::list<std::string> ClABIListFiles(
-    "taint-dfsan-abilist",
+    "dtaint-dfsan-abilist",
     cl::desc("File listing native ABI functions and how the pass treats them"),
     cl::Hidden);
 
 // Controls whether the pass uses IA_Args or IA_TLS as the ABI for instrumented
 // functions (see DataFlowSanitizer::InstrumentedABI below).
 static cl::opt<bool> ClArgsABI(
-    "taint-dfsan-args-abi",
+    "dtaint-dfsan-args-abi",
     cl::desc("Use the argument ABI rather than the TLS ABI"),
     cl::Hidden);
 
 // Controls whether the pass includes or ignores the labels of pointers in load
 // instructions.
 static cl::opt<bool> ClCombinePointerLabelsOnLoad(
-    "taint-dfsan-combine-pointer-labels-on-load",
+    "dtaint-dfsan-combine-pointer-labels-on-load",
     cl::desc("Combine the label of the pointer with the label of the data when "
              "loading from memory."),
     cl::Hidden, cl::init(true));
@@ -153,13 +154,13 @@ static cl::opt<bool> ClCombinePointerLabelsOnLoad(
 // Controls whether the pass includes or ignores the labels of pointers in
 // stores instructions.
 static cl::opt<bool> ClCombinePointerLabelsOnStore(
-    "taint-dfsan-combine-pointer-labels-on-store",
+    "dtaint-dfsan-combine-pointer-labels-on-store",
     cl::desc("Combine the label of the pointer with the label of the data when "
              "storing in memory."),
     cl::Hidden, cl::init(false));
 
 static cl::opt<bool> ClDebugNonzeroLabels(
-    "taint-dfsan-debug-nonzero-labels",
+    "dtaint-dfsan-debug-nonzero-labels",
     cl::desc("Insert calls to __dfsan_nonzero_label on observing a parameter, "
              "load or return with a nonzero label"),
     cl::Hidden);
@@ -175,20 +176,25 @@ static cl::opt<bool> ClDebugNonzeroLabels(
 //   void __dfsan_mem_transfer_callback(dfsan_label *Start, size_t Len);
 //   void __dfsan_cmp_callback(dfsan_label CombinedLabel);
 static cl::opt<bool> ClEventCallbacks(
-    "taint-dfsan-event-callbacks",
+    "dtaint-dfsan-event-callbacks",
     cl::desc("Insert calls to __dfsan_*_callback functions on data events."),
     cl::Hidden, cl::init(false));
 
 static cl::opt<bool> ClHookInst(
-    "dfsan-hook-inst",
+    "dtaint-dfsan-hook-inst",
     cl::desc("Insert calls to hook critical memory instructions, calls."),
-    cl::Hidden, cl::init(false));
+    cl::Hidden, cl::init(true));
 
 // for debug
 static cl::opt<bool> ClDebug(
-    "dtaint-debug",
-    cl::desc("Output debug message."),
+    "dtaint-dfsan-hook-debug",
+    cl::desc("Output hook debug message."),
     cl::Hidden, cl::init(false));
+
+static cl::list<std::string> ClHookABIListFiles(
+    "dtaint-dfsan-hook-abilist",
+    cl::desc("File listing native ABI functions and how the pass hooks them."),
+    cl::Hidden);
 
 static StringRef GetGlobalTypeString(const GlobalValue &G) {
   // Types of GlobalVariables are always pointer types.
@@ -237,6 +243,44 @@ class DFSanABIList {
   /// Returns whether this module is listed in the given category.
   bool isIn(const Module &M, StringRef Category) const {
     return SCL->inSection("dataflow", "src", M.getModuleIdentifier(), Category);
+  }
+};
+
+class DFSanHookABIList {
+  std::unique_ptr<SpecialCaseList> SCL;
+
+ public:
+  DFSanHookABIList() = default;
+
+  void set(std::unique_ptr<SpecialCaseList> List) { SCL = std::move(List); }
+
+  /// Returns whether either this function or its source file are listed in the
+  /// given category.
+  bool isIn(const Function &F, StringRef Category) const {
+    // deal with wrapper name
+    return isIn(*F.getParent(), Category) ||
+           SCL->inSection("hook", "fun", std::string(F.getName()).substr(5, F.getName().size() - 5), Category);
+  }
+
+  /// Returns whether this global alias is listed in the given category.
+  ///
+  /// If GA aliases a function, the alias's name is matched as a function name
+  /// would be.  Similarly, aliases of globals are matched like globals.
+  bool isIn(const GlobalAlias &GA, StringRef Category) const {
+    if (isIn(*GA.getParent(), Category))
+      return true;
+
+    if (isa<FunctionType>(GA.getValueType()))
+      return SCL->inSection("hook", "fun", GA.getName(), Category);
+
+    return SCL->inSection("hook", "global", GA.getName(), Category) ||
+           SCL->inSection("hook", "type", GetGlobalTypeString(GA),
+                          Category);
+  }
+
+  /// Returns whether this module is listed in the given category.
+  bool isIn(const Module &M, StringRef Category) const {
+    return SCL->inSection("hook", "src", M.getModuleIdentifier(), Category);
   }
 };
 
@@ -348,6 +392,39 @@ class DataFlowSanitizer : public ModulePass {
     WK_Custom
   };
 
+  enum DFSanHookType {
+
+    DFSH_UNKNOWN = 0,
+    // __dfsan_hook1 (unsigned id, dfsan_label ptr_label);
+    // ex. load inst.
+    DFSH_HOOK1 = 1, 
+    // __dfsan_hook2 (unsigned id, dfsan_label value_label, dfsan_label ptr_label);
+    // ex. store inst.
+    DFSH_HOOK2 = 2,
+    // __dfsan_hook2_int128 (unsigned id, dfsan_label value_label, dfsan_label ptr_label);
+    // deal with 16byte float point value
+    DFSH_HOOK2_INT128 = 3,
+    // __dfsan_hook3 (unsigned id, dfsan_label ptr_label, dfsan_label c_label, dfsan_label size_label);
+    // ex. memset
+    DFSH_HOOK3 = 4,
+    // __dfsan_hook4 (unsigned id, dfsan_label dst_label, dfsan_label src_label, dfsan_label size_label);
+    // ex. memcpy
+    DFSH_HOOK4 = 5,
+    // __dfsan_hook5 (unsigned id, dfsan_label size_label);
+    // ex. malloc
+    DFSH_HOOK5 = 6,
+    // __dfsan_hook6 (unsigned id, dfsan_label ptr_label);
+    // ex. free
+    DFSH_HOOK6 = 7,
+    // __dfsan_hook7 (unsigned id, dfsan_label ptr_label, dfsan_label size_label);
+    // ex. realloc
+    DFSH_HOOK7 = 8,
+    // __dfsan_va_arg_hook1 (unsigned id, dfsan_label ptr_label, unsigned num_of_idx, ...);
+    // ex. get_element_ptr
+    DFSH_VARARG_HOOK1 = 9
+    
+  };
+
   Module *Mod;
   LLVMContext *Ctx;
   IntegerType *ShadowTy;
@@ -405,6 +482,7 @@ class DataFlowSanitizer : public ModulePass {
   // This is splitline-------------------------------------
   MDNode *ColdCallWeights;
   DFSanABIList ABIList;
+  DFSanHookABIList HookABIList;
   DenseMap<Value *, Function *> UnwrappedFnMap;
   AttrBuilder ReadOnlyNoneAttrs;
   bool DFSanRuntimeShadowMask = false;
@@ -416,6 +494,8 @@ class DataFlowSanitizer : public ModulePass {
   Value *getShadowAddress(Value *Addr, Instruction *Pos);
   bool isInstrumented(const Function *F);
   bool isInstrumented(const GlobalAlias *GA);
+  bool isHooked(const Function *F);
+  DFSanHookType getHookType(const Function *F);
   FunctionType *getArgsFunctionType(FunctionType *T);
   FunctionType *getTrampolineFunctionType(FunctionType *T);
   TransformedFunction getCustomFunctionType(FunctionType *T);
@@ -430,6 +510,9 @@ class DataFlowSanitizer : public ModulePass {
   void initializeRuntimeFunctions(Module &M);
 
 public:
+  static unsigned HookID;
+  static const std::string HookIDFileName;
+  static const unsigned int DtaintMapW;
   static char ID;
 
   DataFlowSanitizer(
@@ -495,9 +578,6 @@ public:
     return DFSF.F->getParent()->getDataLayout();
   }
 
-  static unsigned HookID;
-  static const std::string HookIDFileName;
-  static const unsigned int DtaintMapW;
   // Combines shadow values for all of I's operands. Returns the combined shadow
   // value.
   Value *visitOperandShadowInst(Instruction &I);
@@ -520,14 +600,17 @@ public:
   void visitAllocaInst(AllocaInst &I);
   void visitSelectInst(SelectInst &I);
   void visitMemSetInst(MemSetInst &I);
+  void visitMemCpyInst(MemCpyInst &I);
+  void visitMemCpyInlineInst(MemCpyInlineInst &I);
+  void visitMemMoveInst(MemMoveInst &I);
   void visitMemTransferInst(MemTransferInst &I);
 };
 
 } // end anonymous namespace
 
-unsigned DFSanVisitor::HookID = 0;
-const std::string DFSanVisitor::HookIDFileName = "/tmp/.DtaintHookID.txt";
-const unsigned int DFSanVisitor::DtaintMapW = 65536;
+unsigned DataFlowSanitizer::HookID = 0;
+const std::string DataFlowSanitizer::HookIDFileName = "/tmp/.DtaintHookID.txt";
+const unsigned int DataFlowSanitizer::DtaintMapW = 65536;
 
 char DataFlowSanitizer::ID;
 
@@ -551,6 +634,18 @@ DataFlowSanitizer::DataFlowSanitizer(
   // FIXME: should we propagate vfs::FileSystem to this constructor?
   ABIList.set(
       SpecialCaseList::createOrDie(AllABIListFiles, *vfs::getRealFileSystem()));
+  
+  HookABIList.set(
+            SpecialCaseList::createOrDie(ClHookABIListFiles, *vfs::getRealFileSystem()));
+
+  std::fstream InFile;
+  InFile.open(HookIDFileName, std::ios::in | std::ios::out);
+  if (InFile.eof())
+      HookID = 0;
+  else 
+      InFile >> HookID;
+  InFile.close();
+
 }
 
 FunctionType *DataFlowSanitizer::getArgsFunctionType(FunctionType *T) {
@@ -617,7 +712,7 @@ bool DataFlowSanitizer::doInitialization(Module &M) {
                    TargetTriple.getArch() == Triple::aarch64_be;
 
   const DataLayout &DL = M.getDataLayout();
-  errs() << getPassName() << " init\n";
+  errs() << getPassName() << " " << HookID << " init\n";
   Mod = &M;
   Ctx = &M.getContext();
   ShadowTy = IntegerType::get(*Ctx, ShadowWidthBits);
@@ -706,6 +801,30 @@ bool DataFlowSanitizer::isInstrumented(const Function *F) {
 
 bool DataFlowSanitizer::isInstrumented(const GlobalAlias *GA) {
   return !ABIList.isIn(*GA, "uninstrumented");
+}
+
+bool DataFlowSanitizer::isHooked(const Function *F) {
+  return HookABIList.isIn(*F, "hook");
+}
+
+DataFlowSanitizer::DFSanHookType DataFlowSanitizer::getHookType(const Function *F) {
+  if (HookABIList.isIn(*F, "hook1")) 
+    return DFSH_HOOK1;
+  else if (HookABIList.isIn(*F, "hook2"))
+    return DFSH_HOOK2;
+  else if (HookABIList.isIn(*F, "hook3"))
+    return DFSH_HOOK3;
+  else if (HookABIList.isIn(*F, "hook4"))
+    return DFSH_HOOK4;
+  else if (HookABIList.isIn(*F, "hook5"))
+    return DFSH_HOOK5;
+  else if (HookABIList.isIn(*F, "hook6"))
+    return DFSH_HOOK6;
+  else if (HookABIList.isIn(*F, "hook7"))
+    return DFSH_HOOK7;
+  else if (HookABIList.isIn(*F, "vararghook1"))
+    return DFSH_VARARG_HOOK1;
+  return DFSH_UNKNOWN;
 }
 
 DataFlowSanitizer::InstrumentedABI DataFlowSanitizer::getInstrumentedABI() {
@@ -929,7 +1048,13 @@ bool DataFlowSanitizer::runOnModule(Module &M) {
         &i != DFSanLoadCallbackFn.getCallee()->stripPointerCasts() &&
         &i != DFSanStoreCallbackFn.getCallee()->stripPointerCasts() &&
         &i != DFSanMemTransferCallbackFn.getCallee()->stripPointerCasts() &&
-        &i != DFSanCmpCallbackFn.getCallee()->stripPointerCasts())
+        &i != DFSanCmpCallbackFn.getCallee()->stripPointerCasts() &&
+        &i != DFSanHook3Fn.getCallee()->stripPointerCasts() &&
+        &i != DFSanHook4Fn.getCallee()->stripPointerCasts() &&
+        &i != DFSanHook5Fn.getCallee()->stripPointerCasts() &&
+        &i != DFSanHook6Fn.getCallee()->stripPointerCasts() &&
+        &i != DFSanHook7Fn.getCallee()->stripPointerCasts() &&
+        &i != DFSanVaArgHook1Fn.getCallee()->stripPointerCasts())
       FnsToInstrument.push_back(&i);
   }
 
@@ -1129,6 +1254,11 @@ bool DataFlowSanitizer::runOnModule(Module &M) {
       }
     }
   }
+
+  std::fstream OutFile;
+  OutFile.open(HookIDFileName, std::ios::out | std::ios::trunc);
+  OutFile << HookID % DtaintMapW;
+  OutFile.close();
 
   return Changed || !FnsToInstrument.empty() ||
          M.global_size() != InitialGlobalSize || M.size() != InitialModuleSize;
@@ -1569,28 +1699,26 @@ void DFSanVisitor::visitCmpInst(CmpInst &CI) {
 }
 
 void DFSanVisitor::visitGetElementPtrInst(GetElementPtrInst &GEPI) {
-
-  // append to hook certain instructionsd
-  if (ClHookInst) {
-    
-      if (ClDebug)
-          errs() << "hook GetElementPtr id: " << HookID << "\n";
-  
-      std::vector<Value *> ArgArray;
-      ArgArray.push_back(ConstantInt::get(DFSF.DFS.Int32Ty, HookID++));
-      ArgArray.push_back(DFSF.getShadow(GEPI.getOperand(0)));
-      ArgArray.push_back(ConstantInt::get(DFSF.DFS.Int32Ty, GEPI.getNumIndices()));
-      for (User::op_iterator it = GEPI.idx_begin(); it != GEPI.idx_end(); it++) {
-          ArgArray.push_back(DFSF.getShadow(*it));
-      }
-
-      IRBuilder<> IRB(&GEPI);
-      IRB.CreateCall(DFSF.DFS.DFSanVaArgHook1Fn, ArgArray);
-
-  }
   
   visitOperandShadowInst(GEPI);
+  // append to hook certain instructions
+  if (ClHookInst) {
+    
+    if (ClDebug)
+      errs() << "hook GetElementPtr id: " << DFSF.DFS.HookID << "\n";
 
+    std::vector<Value *> ArgArray;
+    ArgArray.push_back(ConstantInt::get(DFSF.DFS.Int32Ty, DFSF.DFS.HookID++));
+    ArgArray.push_back(DFSF.getShadow(GEPI.getOperand(0)));
+    ArgArray.push_back(ConstantInt::get(DFSF.DFS.Int32Ty, GEPI.getNumIndices()));
+    for (User::op_iterator it = GEPI.idx_begin(); it != GEPI.idx_end(); it++) {
+      ArgArray.push_back(DFSF.getShadow(*it));
+    }
+
+    IRBuilder<> IRB(&GEPI);
+    IRB.CreateCall(DFSF.DFS.DFSanVaArgHook1Fn, ArgArray);
+
+  }
 }
 
 void DFSanVisitor::visitExtractElementInst(ExtractElementInst &I) {
@@ -1659,26 +1787,79 @@ void DFSanVisitor::visitSelectInst(SelectInst &I) {
 void DFSanVisitor::visitMemSetInst(MemSetInst &I) {
   IRBuilder<> IRB(&I);
 
-  if (ClHookInst) {
-
-      if (ClDebug)
-          errs() << "hook MemSetInst id: " << HookID << "\n";
-      
-      std::vector<Value *> ArgArray;
-      ArgArray.push_back(ConstantInt::get(DFSF.DFS.Int32Ty, HookID++));
-      for (User::op_iterator it = I.arg_begin(); it != I.arg_end(); it++) {
-        ArgArray.push_back(DFSF.getShadow(*it));
-      }
-
-      IRB.CreateCall(DFSF.DFS.DFSanHook3Fn, ArgArray);
-
-  }
-
   Value *ValShadow = DFSF.getShadow(I.getValue());
   IRB.CreateCall(DFSF.DFS.DFSanSetLabelFn,
                  {ValShadow, IRB.CreateBitCast(I.getDest(), Type::getInt8PtrTy(
                                                                 *DFSF.DFS.Ctx)),
                   IRB.CreateZExtOrTrunc(I.getLength(), DFSF.DFS.IntptrTy)});
+  
+  if (ClHookInst) {
+    if (ClDebug)
+        errs() << "hook MemSetInst id: " << DFSF.DFS.HookID << "\n";
+    
+    std::vector<Value *> ArgArray;
+    ArgArray.push_back(ConstantInt::get(DFSF.DFS.Int32Ty, DFSF.DFS.HookID++));
+    for (User::op_iterator it = I.arg_begin(); it != I.arg_end(); it++) {
+      ArgArray.push_back(DFSF.getShadow(*it));
+    }
+
+    IRB.CreateCall(DFSF.DFS.DFSanHook3Fn, ArgArray);
+  }
+
+}
+
+void DFSanVisitor::visitMemCpyInst(MemCpyInst &I) {
+  if (ClHookInst) {
+    if (ClDebug)
+      errs() << "hook MemCpyInst id: " << DFSF.DFS.HookID << "\n";
+
+    IRBuilder <> IRB(&I);
+
+    std::vector<Value *> ArgArray;
+    ArgArray.push_back(ConstantInt::get(DFSF.DFS.Int32Ty, DFSF.DFS.HookID++));
+    for (User::op_iterator it = I.arg_begin(); it != I.arg_end(); it++) {
+      ArgArray.push_back(DFSF.getShadow(*it));
+    }
+
+    IRB.CreateCall(DFSF.DFS.DFSanHook4Fn, ArgArray);
+
+  }
+}
+
+void DFSanVisitor::visitMemCpyInlineInst(MemCpyInlineInst &I) {
+  if (ClHookInst) {
+    if (ClDebug)
+      errs() << "hook MemCpyInlineInst id: " << DFSF.DFS.HookID << "\n";
+
+    IRBuilder <> IRB(&I);
+
+    std::vector<Value *> ArgArray;
+    ArgArray.push_back(ConstantInt::get(DFSF.DFS.Int32Ty, DFSF.DFS.HookID++));
+    for (User::op_iterator it = I.arg_begin(); it != I.arg_end(); it++) {
+      ArgArray.push_back(DFSF.getShadow(*it));
+    }
+
+    IRB.CreateCall(DFSF.DFS.DFSanHook4Fn, ArgArray);
+
+  }
+}
+
+void DFSanVisitor::visitMemMoveInst(MemMoveInst &I) {
+  if (ClHookInst) {
+    if (ClDebug)
+      errs() << "hook MemMoveInst id: " << DFSF.DFS.HookID << "\n";
+
+    IRBuilder <> IRB(&I);
+
+    std::vector<Value *> ArgArray;
+    ArgArray.push_back(ConstantInt::get(DFSF.DFS.Int32Ty, DFSF.DFS.HookID++));
+    for (User::op_iterator it = I.arg_begin(); it != I.arg_end(); it++) {
+      ArgArray.push_back(DFSF.getShadow(*it));
+    }
+
+    IRB.CreateCall(DFSF.DFS.DFSanHook4Fn, ArgArray);
+
+  }
 }
 
 void DFSanVisitor::visitMemTransferInst(MemTransferInst &I) {
@@ -1741,6 +1922,40 @@ void DFSanVisitor::visitCallBase(CallBase &CB) {
   // instrument them.
   if (F == DFSF.DFS.DFSanVarargWrapperFn.getCallee()->stripPointerCasts())
     return;
+
+  auto Caller = CB.getFunction();
+  if (ClHookInst && F && !F->isIntrinsic() && Caller->getName().substr(0, 5) != "dfsw$" && DFSF.DFS.isHooked(F)) {
+    if (ClDebug)
+      errs() << "hook "<< F->getName() << " " <<DFSF.DFS.HookID << "\n"; 
+    
+    IRBuilder <> IRB(&CB);
+    std::vector<Value *> ArgArray;
+    ArgArray.push_back(ConstantInt::get(DFSF.DFS.Int32Ty, DFSF.DFS.HookID++));
+    for (User::op_iterator it = CB.arg_begin(); it != CB.arg_end(); it++) {
+      ArgArray.push_back(DFSF.getShadow(*it));
+    }
+
+    switch(DFSF.DFS.getHookType(F)) {
+      case DataFlowSanitizer::DFSH_HOOK3:
+        IRB.CreateCall(DFSF.DFS.DFSanHook3Fn, ArgArray);
+        break;
+      case DataFlowSanitizer::DFSH_HOOK4:
+        IRB.CreateCall(DFSF.DFS.DFSanHook4Fn, ArgArray);
+        break;
+      case DataFlowSanitizer::DFSH_HOOK5:
+        IRB.CreateCall(DFSF.DFS.DFSanHook5Fn, ArgArray);
+        break;
+      case DataFlowSanitizer::DFSH_HOOK6:
+        IRB.CreateCall(DFSF.DFS.DFSanHook6Fn, ArgArray);
+        break;
+      case DataFlowSanitizer::DFSH_HOOK7:
+        IRB.CreateCall(DFSF.DFS.DFSanHook7Fn, ArgArray);
+        break;
+      default:
+        break;
+    }   
+    
+  }
 
   IRBuilder<> IRB(&CB);
 
