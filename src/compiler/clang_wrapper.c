@@ -81,9 +81,14 @@ static void dfsan_pass() {
   cc_params[cc_par_cnt++] = "-load";
   cc_params[cc_par_cnt++] = "-Xclang";
   cc_params[cc_par_cnt++] = alloc_printf("%s/pass/libDFSanPass.so", obj_path);
+  
   cc_params[cc_par_cnt++] = "-mllvm";
   cc_params[cc_par_cnt++] =  
         alloc_printf("-dtaint-dfsan-abilist=%s/lib/share/dfsan_abilist.txt", obj_path);
+
+  cc_params[cc_par_cnt++] = "-mllvm";
+  cc_params[cc_par_cnt++] =  
+        alloc_printf("-dtaint-dfsan-abilist=%s/lib/share/target_abilist.txt", obj_path);
   
   /*cc_params[cc_par_cnt++] = "-mllvm";
   cc_params[cc_par_cnt++] =  

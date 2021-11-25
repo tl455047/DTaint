@@ -41,7 +41,7 @@ void __dfsan_hook_debug_output() {
     
     if (!__afl_dtaint_map->headers[i].hits) continue;
 
-    switch (__afl_dtaint_map->headers[i].type) {
+    /*switch (__afl_dtaint_map->headers[i].type) {
       case DFSH_VARARG_HOOK1: {
           
         fprintf(stderr, "header: id: %u hits: %u type: %u\n", 
@@ -65,7 +65,7 @@ void __dfsan_hook_debug_output() {
           __afl_dtaint_map->log[i][0].__label_t.value_label,
           __afl_dtaint_map->log[i][0].__label_t.size_label);
         break;
-    }
+    }*/
 
   }
 
@@ -396,7 +396,7 @@ void __dfsan_va_arg_hook1 (unsigned id, dfsan_label ptr_label, unsigned num_of_i
 
   va_start(args, num_of_idx);
   for(int j = 0; j < logged; j++) {
-    fprintf(stderr, "idx %u ", va_arg(args, int));
+    fprintf(stderr, "idx_label %u ", va_arg(args, int));
   }fprintf(stderr, "\n");
 
   va_end(args);

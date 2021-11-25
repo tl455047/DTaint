@@ -6,6 +6,7 @@ set(DTAINT_BIN_DIR "${CMAKE_BINARY_DIR}")
 set(DTAINT_LIB_DIR "${CMAKE_BINARY_DIR}/lib")
 set(DTAINT_PASS_DIR "${CMAKE_BINARY_DIR}/pass")
 
+add_subdirectory(abilist)
 add_subdirectory(afl_rt)
 add_subdirectory(compiler)
 add_subdirectory(dfsan_rt)

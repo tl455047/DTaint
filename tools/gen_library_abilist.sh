@@ -1,3 +1,4 @@
+# Script from Angora which generate abilist.txt from library .a, .so.
 #!/bin/sh
 
 if [ ! "$#" = "2" ]; then
