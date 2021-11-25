@@ -150,8 +150,8 @@ static uptr UnusedAddr() {
 int dfsan_check_label(dfsan_label_info* label_info, dfsan_label label) {
   if(label <= label_info->input_label || (label >= label_info->union_label && label < DFSAN_UNION_T_SIZE)) 
     return 1;
-  //Report("FATAL: DataFlowSanitizer: union_t is full\n");
-  //Die();
+  Report("FATAL: DataFlowSanitizer: union_t is full\n");
+  Die();
   return 0;
 }
 
@@ -223,19 +223,9 @@ dfsan_label __dfsan_union(dfsan_label l1, dfsan_label l2) {
   if(__dfsan_label_info.last_label + 1 < DFSAN_UNION_T_SIZE &&
   dfsan_check_label(&__dfsan_label_info, l1) &&
   dfsan_check_label(&__dfsan_label_info, l2)) {
-    //fprintf(stderr, "last label: %u, input label: %u, union label: %u", __dfsan_label_info.last_label, __dfsan_label_info.input_label, 
-    //__dfsan_label_info.union_label);
+   
     label = dfsan_union_t_union(&__dfsan_label_info, l1, l2);
   }
-  
-
-  /**
-   * Maybe we should check that if the union label is already in table,
-   * we can reduce the table size, but need a special structure to improve
-   * searching time to O(logn).
-   */
-  
-  
   
   return label;
 }
@@ -319,13 +309,6 @@ void __dfsan_set_label(dfsan_label label, void *addr, uptr size) {
     // the amount of real memory used by large programs.
     if (label == *labelp)
       continue;
-    
-    
-    if(label && dfsan_check_label(&__dfsan_label_info, label)) {
-      //fprintf(stderr, "addr: %p, shadow addr: %p, size: %u, label: %u\n", addr, labelp, size, DFSAN_UNION_T_SIZE - label);
-      //dtaint_set_shm(labelp, label);
-      __dfsan_label_info.tainted_bytes += 1;
-    }
 
     *labelp = label;
   }
@@ -439,11 +422,12 @@ dfsan_dump_labels(int fd) {
   }
 }*/
 void dfsan_union_t_init() {
+
   __dfsan_label_info.last_label = 0;
   __dfsan_label_info.input_label = 0;
   __dfsan_label_info.union_label = DFSAN_UNION_T_SIZE;
-  __dfsan_label_info.tainted_bytes = 0;
   fprintf(stderr, "DFSan init\n");
+
 }
 
 extern "C" SANITIZER_INTERFACE_ATTRIBUTE void

@@ -2,11 +2,11 @@
 # Hook functions
 ###############################################################################
 fun:malloc=hook
-fun:malloc=hook6
+fun:malloc=hook5
 fun:free=hook
-fun:free=hook7
+fun:free=hook6
 fun:realloc=hook
-fun:realloc=hook8
+fun:realloc=hook7
 fun:calloc=hook
 fun:calloc=hook5
 

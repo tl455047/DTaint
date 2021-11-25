@@ -150,7 +150,6 @@ fun:uselocale=discard
 fun:calloc=custom
 fun:clock_gettime=custom
 fun:dlopen=custom
-fun:fgets=custom
 fun:fstat=custom
 fun:getcwd=custom
 fun:get_current_dir_name=custom
@@ -158,8 +157,6 @@ fun:gethostname=custom
 fun:getrlimit=custom
 fun:getrusage=custom
 fun:nanosleep=custom
-fun:pread=custom
-fun:read=custom
 fun:socketpair=custom
 fun:stat=custom
 fun:time=custom
@@ -303,28 +300,6 @@ fun:__sanitizer_cov_pcs_init=discard
 # Ignores the dfsan wrappers.
 fun:__dfsw_*=uninstrumented
 fun:__dfsw_*=discard
-
-###############################################################################
-# I/O
-###############################################################################
-fun:fread=uninstrumented
-fun:fread=custom
-fun:fread_unlocked=uninstrumented
-fun:fread_unlocked=custom
-fun:fgets=uninstrumented
-fun:fgets=custom
-fun:pread=uninstrumented
-fun:pread=custom
-fun:read=uninstrumented
-fun:read=custom
-fun:fgetc=uninstrumented
-fun:fgetc=custom
-fun:fgetc_unlocked=uninstrumented
-fun:fgetc_unlocked=custom
-fun:getchar=uninstrumented
-fun:getchar=custom
-fun:getc=uninstrumented
-fun:getc=custom
 ###############################################################################
 # DFSan hook extension
 ###############################################################################

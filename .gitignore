@@ -5,6 +5,7 @@
 /.vscode/*
 .gitignore
 /test/hook_test/*_test
+/test/hook_test/*_afl
 /test/target
 /test/test
 /test/environment/*_test
