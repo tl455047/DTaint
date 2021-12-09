@@ -97,7 +97,8 @@ struct dtaint_map {
   union dtaint_label_t log[DTAINT_MAP_W][DTAINT_MAP_H]; 
   struct dtaint_offset_node label_info[DTAINT_MAP_W];
   struct dtainted offset_t[DTAINT_MAP_W][DTAINT_MAP_H]; 
-
+  unsigned int status;
+  
 };
 
 #endif

@@ -431,6 +431,7 @@ class DataFlowSanitizer : public ModulePass {
   IntegerType *Int32Ty;
   PointerType *ShadowPtrTy;
   IntegerType *IntptrTy;
+  Type        *Int64PtrTy;
   IntegerType *SizeTy;
   ConstantInt *ZeroShadow;
   ConstantInt *ShadowPtrMask;
@@ -473,12 +474,14 @@ class DataFlowSanitizer : public ModulePass {
   FunctionType *DFSanHook5FnTy;
   FunctionType *DFSanHook6FnTy;
   FunctionType *DFSanHook7FnTy;
+  FunctionType *DFSanHookDebugFnTy;
   FunctionCallee DFSanVaArgHook1Fn;
   FunctionCallee DFSanHook3Fn;
   FunctionCallee DFSanHook4Fn;
   FunctionCallee DFSanHook5Fn;
   FunctionCallee DFSanHook6Fn;
   FunctionCallee DFSanHook7Fn;
+  FunctionCallee DFSanHookDebugFn;
   // This is splitline-------------------------------------
   MDNode *ColdCallWeights;
   DFSanABIList ABIList;
@@ -610,7 +613,7 @@ public:
 
 unsigned DataFlowSanitizer::HookID = 0;
 const std::string DataFlowSanitizer::HookIDFileName = "/tmp/.DtaintHookID.txt";
-const unsigned int DataFlowSanitizer::DtaintMapW = 65536;
+const unsigned int DataFlowSanitizer::DtaintMapW = 65536 * 2;
 
 char DataFlowSanitizer::ID;
 
@@ -774,6 +777,9 @@ bool DataFlowSanitizer::doInitialization(Module &M) {
   Type *DFSanHook7Args[3] = {Int32Ty, ShadowTy, ShadowTy};
   DFSanHook7FnTy =     
       FunctionType::get(Type::getVoidTy(*Ctx), DFSanHook7Args, false);
+  Type *DFSanHookDebugFnArgs[5] = {Int32Ty, Int64PtrTy, Int32Ty, Int32Ty, Int32Ty};
+  DFSanHookDebugFnTy =
+      FunctionType::get(Type::getVoidTy(*Ctx), DFSanHookDebugFnArgs, true);
   // This is splitline-------------------------------------
   if (GetArgTLSPtr) {
     Type *ArgTLSTy = ArrayType::get(ShadowTy, 64);
@@ -988,6 +994,7 @@ void DataFlowSanitizer::initializeRuntimeFunctions(Module &M) {
   DFSanHook5Fn = Mod->getOrInsertFunction("__dfsan_hook5", DFSanHook5FnTy);
   DFSanHook6Fn = Mod->getOrInsertFunction("__dfsan_hook6", DFSanHook6FnTy);
   DFSanHook7Fn = Mod->getOrInsertFunction("__dfsan_hook7", DFSanHook7FnTy);
+  DFSanHookDebugFn = Mod->getOrInsertFunction("__dfsan_hook_debug", DFSanHookDebugFnTy);
   // This is splitline-------------------------------------
 }
 
@@ -1054,10 +1061,10 @@ bool DataFlowSanitizer::runOnModule(Module &M) {
         &i != DFSanHook5Fn.getCallee()->stripPointerCasts() &&
         &i != DFSanHook6Fn.getCallee()->stripPointerCasts() &&
         &i != DFSanHook7Fn.getCallee()->stripPointerCasts() &&
-        &i != DFSanVaArgHook1Fn.getCallee()->stripPointerCasts())
+        &i != DFSanVaArgHook1Fn.getCallee()->stripPointerCasts() &&
+        &i != DFSanHookDebugFn.getCallee()->stripPointerCasts()) 
       FnsToInstrument.push_back(&i);
   }
-
   // Give function aliases prefixes when necessary, and build wrappers where the
   // instrumentedness is inconsistent.
   for (Module::alias_iterator i = M.alias_begin(), e = M.alias_end(); i != e;) {
@@ -1190,7 +1197,7 @@ bool DataFlowSanitizer::runOnModule(Module &M) {
   for (Function *i : FnsToInstrument) {
     if (!i || i->isDeclaration())
       continue;
-
+    //errs() << i->getName()<< "\n";
     removeUnreachableBlocks(*i);
 
     DFSanFunction DFSF(*this, i, FnsWithNativeABI.count(i));
@@ -1209,7 +1216,7 @@ bool DataFlowSanitizer::runOnModule(Module &M) {
         // DFSanVisitor may delete Inst, so keep track of whether it was a
         // terminator.
         bool IsTerminator = Inst->isTerminator();
-        if (!DFSF.SkipInsts.count(Inst))
+        if (!DFSF.SkipInsts.count(Inst)) 
           DFSanVisitor(DFSF).visit(Inst);
         if (IsTerminator)
           break;
@@ -1699,14 +1706,12 @@ void DFSanVisitor::visitCmpInst(CmpInst &CI) {
 }
 
 void DFSanVisitor::visitGetElementPtrInst(GetElementPtrInst &GEPI) {
-  
-  visitOperandShadowInst(GEPI);
   // append to hook certain instructions
   if (ClHookInst) {
     
-    if (ClDebug)
-      errs() << "hook GetElementPtr id: " << DFSF.DFS.HookID << "\n";
-
+    if (ClDebug) 
+      errs() << GEPI.getFunction()->getName() << " hook GetElementPtr id: " << DFSF.DFS.HookID << "\n";
+    
     std::vector<Value *> ArgArray;
     ArgArray.push_back(ConstantInt::get(DFSF.DFS.Int32Ty, DFSF.DFS.HookID++));
     ArgArray.push_back(DFSF.getShadow(GEPI.getOperand(0)));
@@ -1719,6 +1724,7 @@ void DFSanVisitor::visitGetElementPtrInst(GetElementPtrInst &GEPI) {
     IRB.CreateCall(DFSF.DFS.DFSanVaArgHook1Fn, ArgArray);
 
   }
+  visitOperandShadowInst(GEPI);
 }
 
 void DFSanVisitor::visitExtractElementInst(ExtractElementInst &I) {
@@ -1786,16 +1792,10 @@ void DFSanVisitor::visitSelectInst(SelectInst &I) {
 
 void DFSanVisitor::visitMemSetInst(MemSetInst &I) {
   IRBuilder<> IRB(&I);
-
-  Value *ValShadow = DFSF.getShadow(I.getValue());
-  IRB.CreateCall(DFSF.DFS.DFSanSetLabelFn,
-                 {ValShadow, IRB.CreateBitCast(I.getDest(), Type::getInt8PtrTy(
-                                                                *DFSF.DFS.Ctx)),
-                  IRB.CreateZExtOrTrunc(I.getLength(), DFSF.DFS.IntptrTy)});
   
   if (ClHookInst) {
     if (ClDebug)
-        errs() << "hook MemSetInst id: " << DFSF.DFS.HookID << "\n";
+        errs() << I.getFunction()->getName() << " hook MemSetInst id: " << DFSF.DFS.HookID << "\n";
     
     std::vector<Value *> ArgArray;
     ArgArray.push_back(ConstantInt::get(DFSF.DFS.Int32Ty, DFSF.DFS.HookID++));
@@ -1806,12 +1806,19 @@ void DFSanVisitor::visitMemSetInst(MemSetInst &I) {
     IRB.CreateCall(DFSF.DFS.DFSanHook3Fn, ArgArray);
   }
 
+  Value *ValShadow = DFSF.getShadow(I.getValue());
+  IRB.CreateCall(DFSF.DFS.DFSanSetLabelFn,
+                 {ValShadow, IRB.CreateBitCast(I.getDest(), Type::getInt8PtrTy(
+                                                                *DFSF.DFS.Ctx)),
+                  IRB.CreateZExtOrTrunc(I.getLength(), DFSF.DFS.IntptrTy)});
+  
+ 
 }
 
 void DFSanVisitor::visitMemCpyInst(MemCpyInst &I) {
   if (ClHookInst) {
     if (ClDebug)
-      errs() << "hook MemCpyInst id: " << DFSF.DFS.HookID << "\n";
+      errs() << I.getFunction()->getName() << " hook MemCpyInst id: " << DFSF.DFS.HookID << "\n";
 
     IRBuilder <> IRB(&I);
 
@@ -1829,7 +1836,7 @@ void DFSanVisitor::visitMemCpyInst(MemCpyInst &I) {
 void DFSanVisitor::visitMemCpyInlineInst(MemCpyInlineInst &I) {
   if (ClHookInst) {
     if (ClDebug)
-      errs() << "hook MemCpyInlineInst id: " << DFSF.DFS.HookID << "\n";
+      errs() << I.getFunction()->getName() << " hook MemCpyInlineInst id: " << DFSF.DFS.HookID << "\n";
 
     IRBuilder <> IRB(&I);
 
@@ -1847,7 +1854,7 @@ void DFSanVisitor::visitMemCpyInlineInst(MemCpyInlineInst &I) {
 void DFSanVisitor::visitMemMoveInst(MemMoveInst &I) {
   if (ClHookInst) {
     if (ClDebug)
-      errs() << "hook MemMoveInst id: " << DFSF.DFS.HookID << "\n";
+      errs() << I.getFunction()->getName() << " hook MemMoveInst id: " << DFSF.DFS.HookID << "\n";
 
     IRBuilder <> IRB(&I);
 
@@ -1926,7 +1933,7 @@ void DFSanVisitor::visitCallBase(CallBase &CB) {
   auto Caller = CB.getFunction();
   if (ClHookInst && F && !F->isIntrinsic() && Caller->getName().substr(0, 5) != "dfsw$" && DFSF.DFS.isHooked(F)) {
     if (ClDebug)
-      errs() << "hook "<< F->getName() << " " <<DFSF.DFS.HookID << "\n"; 
+      errs() << CB.getFunction()->getName() << " hook "<< F->getName() << " " <<DFSF.DFS.HookID << "\n"; 
     
     IRBuilder <> IRB(&CB);
     std::vector<Value *> ArgArray;

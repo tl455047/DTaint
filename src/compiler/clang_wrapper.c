@@ -66,8 +66,20 @@ static void memlog_pass() {
   cc_params[cc_par_cnt++] = "-memlog-hook-inst=1";
 
   cc_params[cc_par_cnt++] = "-mllvm";
+  cc_params[cc_par_cnt++] =  
+        alloc_printf("-memlog-dfsan-abilist=%s/lib/share/dfsan_abilist.txt", obj_path);
+
+  cc_params[cc_par_cnt++] = "-mllvm";
+  cc_params[cc_par_cnt++] =  
+        alloc_printf("-memlog-dfsan-abilist=%s/lib/share/target_abilist.txt", obj_path);
+        
+  cc_params[cc_par_cnt++] = "-mllvm";
   cc_params[cc_par_cnt++] = 
         alloc_printf("-memlog-hook-abilist=%s/lib/share/hook_abilist.txt", obj_path);
+  
+  cc_params[cc_par_cnt++] = "-mllvm";
+  cc_params[cc_par_cnt++] = 
+        alloc_printf("-memlog-debug=1", obj_path);
 
 }
 
@@ -112,8 +124,22 @@ static void dfsan_pass() {
   cc_params[cc_par_cnt++] = "-mllvm";
   cc_params[cc_par_cnt++] = 
         alloc_printf("-dtaint-dfsan-hook-abilist=%s/lib/share/hook_abilist.txt", obj_path);
- 
 
+  cc_params[cc_par_cnt++] = "-mllvm";
+  cc_params[cc_par_cnt++] = 
+        alloc_printf("-dtaint-dfsan-hook-debug=1", obj_path);
+
+  cc_params[cc_par_cnt++] = "-mllvm";
+  cc_params[cc_par_cnt++] =
+        alloc_printf("-dtaint-dfsan-debug-nonzero-labels=0", obj_path);
+
+  cc_params[cc_par_cnt++] = "-mllvm";
+  cc_params[cc_par_cnt++] = 
+        alloc_printf("-dtaint-dfsan-combine-pointer-labels-on-load=1", obj_path);
+
+  cc_params[cc_par_cnt++] = "-mllvm";
+  cc_params[cc_par_cnt++] = 
+        alloc_printf("-dtaint-dfsan-event-callbacks=0", obj_path);
 }
 
 static void memlog_runtime() {
@@ -132,6 +158,9 @@ static void dfsan_runtime() {
   cc_params[cc_par_cnt++] = "-Wl,--whole-archive";
   cc_params[cc_par_cnt++] = alloc_printf("%s/lib/libclang_rt.dfsan-x86_64.a", obj_path);
   cc_params[cc_par_cnt++] = "-Wl,--no-whole-archive";
+  cc_params[cc_par_cnt++] =
+        alloc_printf("-Wl,--dynamic-list=%s/lib/libclang_rt.dfsan-x86_64.a.syms", obj_path);
+
   cc_params[cc_par_cnt++] = "-ldl";
   cc_params[cc_par_cnt++] = "-lpthread";    
   cc_params[cc_par_cnt++] = "-lstdc++";
@@ -297,14 +326,14 @@ static void edit_params(u32 argc, char** argv) {
   }
   
   if (getenv("MEMLOG_MODE")) {
-    memlog_pass();
-    memlog_runtime();
+    memlog_pass(); 
   }
   else {
     dfsan_pass();
-    dfsan_runtime();
+    
   }
-  
+  memlog_runtime();
+  dfsan_runtime();
   afl_runtime();
   
   /*if (getenv("SYNC_HOOK_ID")) {

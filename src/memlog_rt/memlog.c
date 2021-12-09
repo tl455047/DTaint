@@ -2,7 +2,8 @@
 #include <stdarg.h>
 #include "memlog.h"
 #include "types.h"
-
+#include "config.h"
+#include <string.h>
 typedef unsigned __int128 uint128_t;
 
 extern struct memlog_map *__afl_memlog_map;
@@ -33,54 +34,52 @@ extern struct memlog_map *__afl_memlog_map;
 
 void __memlog_debug_output() {
   
+  struct hook_va_arg_operand *__hook_va_arg;
   for (int i = 0; i < MEMLOG_MAP_W; i++) {
     
     if (!__afl_memlog_map->headers[i].hits) continue;
     
     
-    
-    switch (__afl_memlog_map->headers[i].type) {
+     fprintf(stderr, "header: id: %u hits: %u type: %u\n", 
+          i, 
+          __afl_memlog_map->headers[i].hits,
+          __afl_memlog_map->headers[i].type);
+    /*switch (__afl_memlog_map->headers[i].type) {
       case HT_VARARG_HOOK1:
           
-        fprintf(stderr, "header: id: %u hits: %u src_shape: %u rst_shape: %u type: %u\n", 
-          __afl_memlog_map->headers[i].id, 
+        fprintf(stderr, "header: id: %u hits: %u type: %u\n", 
+          i, 
           __afl_memlog_map->headers[i].hits,
-          __afl_memlog_map->headers[i].src_shape,
-          __afl_memlog_map->headers[i].rst_shape,
           __afl_memlog_map->headers[i].type);
         fprintf(stderr, "hook va arg log: num: %p ptr: %p\n",
           __afl_memlog_map->log[i][0].__hook_va_arg.num,
           __afl_memlog_map->log[i][0].__hook_va_arg.ptr);
 
-        unsigned long long *p = __afl_memlog_map->log[i][0].__hook_va_arg.idx;
+        __hook_va_arg = &__afl_memlog_map->log[i][0].__hook_va_arg;
         for (int j = 0; j < __afl_memlog_map->log[i][0].__hook_va_arg.num; j++) {
-          fprintf(stderr, "%u ", p[j]);
+          fprintf(stderr, "%u ", __hook_va_arg->idx[j]);
         }fprintf(stderr, "\n");
         break;
-      /*case HT_HOOK2_INT128:
-        fprintf(stderr, "hook log: type: %u dst: %p src: %p upper value: %p lower value %p size: %lld\n",
-        __afl_memlog_map->headers[i].type,
-        __afl_memlog_map->log[i][0].__hook_op.dst,
-        __afl_memlog_map->log[i][0].__hook_op.src,
-        __afl_memlog_map->log[i][0].__hook_op.value_128,
-        __afl_memlog_map->log[i][0].__hook_op.value,
-        __afl_memlog_map->log[i][0].__hook_op.size);
+      case HT_HOOK3:
+      case HT_HOOK4:
+      case HT_HOOK5:
+      case HT_HOOK6:
+      case HT_HOOK7: {
+        fprintf(stderr, "header: id: %u hits: %u type: %u\n", 
+          i, 
+          __afl_memlog_map->headers[i].hits,
+          __afl_memlog_map->headers[i].type);
         break;
+      }
       default:
-        fprintf(stderr, "hook log: type: %u dst: %p src: %p value: %lld size: %lld\n",
-          __afl_memlog_map->headers[i].type,
-          __afl_memlog_map->log[i][0].__hook_op.dst,
-          __afl_memlog_map->log[i][0].__hook_op.src,
-          __afl_memlog_map->log[i][0].__hook_op.value,
-          __afl_memlog_map->log[i][0].__hook_op.size);
-        break;*/
-    }
+        break;
+    }*/
 
   }
 
 }
 
-__attribute__((constructor)) 
+__attribute__((constructor(100))) 
 void __memlog_debug_init() {
       
   fprintf(stderr, "__memlog_debug_init\n");
@@ -97,10 +96,12 @@ void __memlog_debug_fini() {
 
   fprintf(stderr, "__memlog_debug_fini\n");
   if (__afl_memlog_map)
-  __memlog_debug_output();
+    __memlog_debug_output();
 
-  if(__afl_memlog_map) 
+  if(__afl_memlog_map && !getenv(MEMLOG_SHM_ENV_VAR)) {
     free(__afl_memlog_map);
+    __afl_memlog_map = NULL;
+  }
 
 }
 
@@ -125,15 +126,35 @@ void __memlog_hook_va_arg_debug(int num1, void* num2, double num3, int num_of_id
   
 }
 
-void __memlog_hook_debug(int num1, void* num2, __int128 num3, double num4) {
-  
-  fprintf(stderr, "num1: %d num2: %p upper num3: %p lower num3: %p num4: %lf\n", 
-  num1, num2, (int64_t)(num3 >> 64), (int64_t)num3, num4);
-
-}
-
 #endif
 
+void __memlog_hook_debug(u32 id) {
+  
+  fprintf(stderr, "__memlog_hook_debug id: %u\n", id);
+
+  if (unlikely(!__afl_memlog_map) || id >= MEMLOG_MAP_W) return;
+
+  unsigned hits;
+  if (!__afl_memlog_map->headers[id].type) {
+    
+    hits = 0;
+    __afl_memlog_map->headers[id].hits = 1;
+    __afl_memlog_map->headers[id].type = HT_VARARG_HOOK1;
+    
+  }
+  else {
+
+    hits = __afl_memlog_map->headers[id].hits++;
+  
+  }
+}
+
+__attribute__((destructor(0)))
+void _memlog_hook_fini() {
+
+  if (__afl_memlog_map && __afl_memlog_map->status != 1)
+  __afl_memlog_map->status = 9487;
+}
 /**
  * ex. load inst.
  */
@@ -141,7 +162,7 @@ __attribute__((visibility("default")))
 void __memlog_hook1(u32 id, void* ptr, u32 src_type, u32 rst_type) {
   
   #ifdef MEMLOG_DEBUG
-  fprintf(stderr, "__memlog_hook1: id: %u ptr: %p src_type: %u rst type:\
+  /*fprintf(stderr, "__memlog_hook1: id: %u ptr: %p src_type: %u rst type:\
   %u value: ", id, ptr, src_type, rst_type);
   if (src_type < sizeof(int64_t)) 
     fprintf(stderr, "%u\n", *((int *)ptr));
@@ -152,7 +173,7 @@ void __memlog_hook1(u32 id, void* ptr, u32 src_type, u32 rst_type) {
     uint128_t val = *((uint128_t *)ptr);
     fprintf(stderr, "upper: %llu lower: %llu\n", (uint64_t )val, (uint64_t)(val >> 64));
 
-  }
+  }*/
   #endif
   
   if (unlikely(!__afl_memlog_map) || id >= MEMLOG_MAP_W) return;
@@ -173,7 +194,8 @@ void __memlog_hook1(u32 id, void* ptr, u32 src_type, u32 rst_type) {
     hits = __afl_memlog_map->headers[id].hits++;
   
   }
-  
+
+  hits &= MEMLOG_MAP_H - 1;
   if (src_type < sizeof(int64_t)) {
 
     __afl_memlog_map->log[id][hits].__hook_op.value = *((unsigned *)ptr);
@@ -192,7 +214,6 @@ void __memlog_hook1(u32 id, void* ptr, u32 src_type, u32 rst_type) {
 
   }
 
-  hits &= MEMLOG_MAP_H - 1;
   __afl_memlog_map->log[id][hits].__hook_op.src = ptr;
 
 }
@@ -208,7 +229,7 @@ void __memlog_hook2(u32 id, size_t value, u32 src_type, void* ptr,
   if (id == 870) 
   /*fprintf(stderr, "__memlog_hook2: id: %u value: %x src_type: %u\
   ptr: %p rst_type: %u\n", id, value, src_type, ptr, rst_type);*/
-  fprintf(stderr, "__memlog_hook2 id: %u\n", id);
+  //fprintf(stderr, "__memlog_hook2 id: %u\n", id);
   #endif
   
   if (unlikely(!__afl_memlog_map) || id >= MEMLOG_MAP_W) return;
@@ -243,10 +264,9 @@ void __memlog_hook2_int128(u32 id, uint128_t value, u32 src_type,
   void* ptr, unsigned rst_type) {
   
   #ifdef MEMLOG_DEBUG
-  if (id == 870) 
-  fprintf(stderr, "__memlog_hook2_int128: id: %u upper value: %p lower value: %p\
+  /*fprintf(stderr, "__memlog_hook2_int128: id: %u upper value: %p lower value: %p\
   src_type: %u ptr: %p rst_type: %u\n", id, (int64_t)(value >> 64), 
-  (int64_t)value, src_type, ptr, rst_type);
+  (int64_t)value, src_type, ptr, rst_type);*/
   #endif
   
   if (unlikely(!__afl_memlog_map) || id >= MEMLOG_MAP_W) return;
@@ -283,8 +303,8 @@ __attribute__((visibility("default")))
 void __memlog_hook3(u32 id, void* ptr, int c, size_t size) {
   
   #ifdef MEMLOG_DEBUG
-  fprintf(stderr, "__memlog_hook3: id: %u ptr: %p c: %u size: %llu\n", id, ptr, 
-    c, size);
+  //fprintf(stderr, "__memlog_hook3: id: %u ptr: %p c: %u size: %llu\n", id, ptr, 
+  //  c, size);
   #endif
   
   if (unlikely(!__afl_memlog_map) || id >= MEMLOG_MAP_W) return;
@@ -320,8 +340,8 @@ __attribute__((visibility("default")))
 void __memlog_hook4(u32 id, void* dst, void* src, size_t size) {
   
   #ifdef MEMLOG_DEBUG
-  fprintf(stderr, "__memlog_hook4: id: %u dst: %p src: %p size: %llu\n", id, 
-    dst, src, size);
+  //fprintf(stderr, "__memlog_hook4: id: %u dst: %p src: %p size: %llu\n", id, 
+  //  dst, src, size);
   #endif
   
   if (unlikely(!__afl_memlog_map) || id >= MEMLOG_MAP_W) return;
@@ -357,7 +377,7 @@ __attribute__((visibility("default")))
 void __memlog_hook5(u32 id, size_t size) {
 
   #ifdef MEMLOG_DEBUG
-  fprintf(stderr, "__memlog_hook5: id: %u size: %llu\n", id, size);
+ //fprintf(stderr, "__memlog_hook5: id: %u size: %llu\n", id, size);
   #endif
 
   if (unlikely(!__afl_memlog_map) || id >= MEMLOG_MAP_W) return;
@@ -391,7 +411,7 @@ __attribute__((visibility("default")))
 void __memlog_hook6(u32 id, void* ptr) {
   
   #ifdef MEMLOG_DEBUG
-  fprintf(stderr, "__memlog_hook6: id: %u ptr: %p\n", id, ptr);
+  //fprintf(stderr, "__memlog_hook6: id: %u ptr: %p\n", id, ptr);
   #endif
 
   if (unlikely(!__afl_memlog_map) || id >= MEMLOG_MAP_W) return;
@@ -422,7 +442,7 @@ __attribute__((visibility("default")))
 void __memlog_hook7(u32 id, void* ptr, size_t size) {
   
   #ifdef MEMLOG_DEBUG
-  fprintf(stderr, "__memlog_hook7: id: %u ptr: %p size: %llu\n", id, ptr, size);
+  //fprintf(stderr, "__memlog_hook7: id: %u ptr: %p size: %llu\n", id, ptr, size);
   #endif
 
   if (unlikely(!__afl_memlog_map) || id >= MEMLOG_MAP_W) return;
@@ -459,15 +479,16 @@ void __memlog_va_arg_hook1(u32 id, void* ptr, u32 src_type, u32 rst_type,
   //deal with vararg
   va_list args;
   int size, logged;
+  struct hook_va_arg_operand *__hook_va_arg;
   #ifdef MEMLOG_DEBUG
   
-  if (num_of_idx > MEMLOG_MAXiMUM_IDX_NUM)
+  /*if (num_of_idx > MEMLOG_MAXiMUM_IDX_NUM)
     logged = MEMLOG_MAXiMUM_IDX_NUM;
   else
     logged = num_of_idx;
 
-  fprintf(stderr, "__memlog_vararg_hook1: id: %u ptr: %p src_type: %u\
-    rst_type: %u num: %u\n", id, ptr, src_type, rst_type, num_of_idx);
+  fprintf(stderr, "__memlog_vararg_hook1: id: %u src_type: %u\
+    rst_type: %u num: %u ", id, src_type, rst_type, num_of_idx);
     va_start(args, num_of_idx);
 
   for(int j = 0; j < logged; j++) {
@@ -480,7 +501,7 @@ void __memlog_va_arg_hook1(u32 id, void* ptr, u32 src_type, u32 rst_type,
 
   }fprintf(stderr, "\n");
 
-  va_end(args);
+  va_end(args);*/
  
   #endif
 
@@ -511,19 +532,19 @@ void __memlog_va_arg_hook1(u32 id, void* ptr, u32 src_type, u32 rst_type,
   else
     logged = num_of_idx;
 
-  __afl_memlog_map->log[id][hits].__hook_va_arg.num = logged;
-  __afl_memlog_map->log[id][hits].__hook_va_arg.ptr = ptr;
+  __hook_va_arg = &__afl_memlog_map->log[id][hits].__hook_va_arg;
+  __hook_va_arg->num = logged;
+  __hook_va_arg->ptr = ptr;
   
-  unsigned long long *p = __afl_memlog_map->log[id][hits].__hook_va_arg.idx;
   va_start(args, num_of_idx);
   for(int i = 0; i < logged; i++) {
     
     size = (unsigned)va_arg(args, int);
     
     if (size <= sizeof(int))
-      *(p + i) = va_arg(args, int);
+      __hook_va_arg->idx[i] = va_arg(args, int);
     else if (size <= sizeof(long long))
-      *(p + i) = va_arg(args, long long);
+      __hook_va_arg->idx[i] = va_arg(args, long long);
     
   }
   va_end(args);

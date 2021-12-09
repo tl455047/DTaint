@@ -9,7 +9,7 @@ include_directories(../afl_rt/include)
 set_target_properties(memlog_rt 
     PROPERTIES
     ARCHIVE_OUTPUT_DIRECTORY "${DTAINT_LIB_DIR}"
-    COMPILE_FLAGS "-funroll-loops -fPIC -fPIE -O3 -Wall -D_FORTIFY_SOURCE=2 -g -Wno-pointer-sign")
+    COMPILE_FLAGS "-fPIC -O3 -g -ggdb -fno-rtti -ffreestanding")
 
 option(MEMLOG_DEBUG "Memlog Debugging" OFF)
 

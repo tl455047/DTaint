@@ -41,15 +41,15 @@ enum HookType {
 struct memlog_header {
   
   // instructions executed
-  unsigned hits;
+  unsigned int hits;
   // unique id
-  unsigned id;
+  unsigned int id;
   // src shape 
-  unsigned src_shape;
+  unsigned int src_shape;
   // result shape
-  unsigned rst_shape;
+  unsigned int rst_shape;
   //type
-  unsigned type;
+  unsigned int type;
   
 } __attribute__((packed));
 
@@ -66,15 +66,15 @@ struct hook_operand {
 
 struct hook_va_arg_operand {
   
-  unsigned num;
+  unsigned int num;
   void* ptr;
-  unsigned idx[MEMLOG_MAXiMUM_IDX_NUM];
+  unsigned int idx[MEMLOG_MAXiMUM_IDX_NUM];
 
 } __attribute__((packed));
 
 struct hook_va_arg_idx {
   
-  unsigned type;
+  unsigned int type;
   unsigned long long idx;
 
 } __attribute__((packed));
@@ -90,6 +90,7 @@ struct memlog_map {
   
   struct memlog_header headers[MEMLOG_MAP_W];
   union hook_operands log[MEMLOG_MAP_W][MEMLOG_MAP_H]; 
+  unsigned int status;
 
 };
 

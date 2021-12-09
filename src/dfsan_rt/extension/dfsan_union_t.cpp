@@ -82,7 +82,7 @@ void union_t_debug(struct offset_node* node, int fd) {
   struct tainted* t = node->tainted;
   char buf[256];
   
-  internal_snprintf(buf, sizeof(buf), "label: %u num: %u len: %u\n", node->label, node->len, node->num);
+  internal_snprintf(buf, sizeof(buf), "label: %u num: %u len: %u\n", node->label, node->num, node->len);
   WriteToFile(fd, buf, internal_strlen(buf));
 
   for(u32 i = 0; i < node->num; i++) {
@@ -135,18 +135,16 @@ static struct offset_node* union_t_offset_union(dfsan_label l1, dfsan_label l2, 
       }
 
       if(t1[i].pos < t2[j].pos) { 
-        temp[k] = t1[i++];
+        temp[k++] = t1[i++];
       }
       else {
-        temp[k] = t2[j++];
+        temp[k++] = t2[j++];
       }
-
-      k++;
       
     }
     // whether it is new label, copy the offset to new label address
     new_tainted = offset_table(new_label); 
-    
+ 
     // handle overlapped
     i = 0, j = 0;
     new_tainted[j] = temp[i++];
@@ -159,7 +157,7 @@ static struct offset_node* union_t_offset_union(dfsan_label l1, dfsan_label l2, 
       taint_end = new_tainted[j].pos + new_tainted[j].len - 1;
       overlapped = (temp[i].pos - taint_end) * (tail_end - new_tainted[j].pos);
 
-      if(overlapped < 0) {
+      if(overlapped <= 0) {
         // overlapped
         if(taint_end < tail_end) 
           new_tainted[j].len += tail_end - taint_end;
@@ -174,7 +172,7 @@ static struct offset_node* union_t_offset_union(dfsan_label l1, dfsan_label l2, 
       }
       else {
 
-        total_len += temp[i].len;
+        total_len += new_tainted[j].len;
         num_of_node += 1;
         new_tainted[++j] = temp[i++];
       
@@ -187,9 +185,11 @@ static struct offset_node* union_t_offset_union(dfsan_label l1, dfsan_label l2, 
   }
   else {
     
-    Report("FATAL: DataFlowSanitizer: union_t is full\n");
-    Die();
-
+    total_len = union_table()[l1].len;
+    num_of_node = union_table()[l1].num;
+    new_tainted = t1;
+    new_label = l1;
+    
   }
   
   // construct new offset node
@@ -242,13 +242,12 @@ void output_offset_s_list(int fd) {
 /**
  * Insert offset list into offset search list.
  */
-void union_t_offset_list_insert(struct offset_node *node, dfsan_label label) {
+void union_t_offset_list_insert(struct offset_node *node) {
   u32 offset_idx, size = node->len;
   //get nearest offset size from len.
   for(offset_idx = 0; size >>=1; offset_idx++);
   
   if(offset_idx < DFSAN_UNION_T_OFFSET_LIST_SIZE + 1) {
-    node->label = label;
     node->next = __union_t_offset_s_list[offset_idx];
     __union_t_offset_s_list[offset_idx] = node;
   }
@@ -287,8 +286,8 @@ int union_t_offset_list_search(struct offset_node* new_node, dfsan_label *new_la
 
   }
   else {
-    Report("FATAL: DataFlowSanitizer: offset list out of bound\n");
-    Die(); 
+    //Report("FATAL: DataFlowSanitizer: offset list out of bound\n");
+    //Die(); 
   }
   
   return 0;
@@ -302,7 +301,7 @@ int union_t_offset_is_exist(struct offset_node* node, dfsan_label *new_label) {
   // Linear search is bad.
   // If total len is 1, no need to search just index union_t directly.
   if(node->len == 1) {
-    *new_label = node->tainted->pos + 1;
+    *new_label = node->tainted[0].pos + 1;
     return 1;
   }
   // total len > 1, search offset list table.
@@ -325,11 +324,11 @@ dfsan_label dfsan_union_t_insert(dfsan_label_info* label_info, u32 pos) {
   union_table()[label].num = 1;
   union_table()[label].len = 1;
   union_table()[label].next = NULL;
-  union_table()[label].label = label_info->last_label;
+  union_table()[label].label = label;
   union_table()[label].tainted = offset_table(label);
   
-  offset_table(label)->pos = pos;
-  offset_table(label)->len = 1;
+  offset_table(label)[0].pos = pos;
+  offset_table(label)[0].len = 1;
   
   return label;
   
@@ -355,10 +354,15 @@ dfsan_label dfsan_union_t_union(dfsan_label_info* label_info, dfsan_label l1, df
     label_info->last_label += 1;
     new_label = label_info->union_label;
     //insert into search list
-    union_t_offset_list_insert(union_node, new_label);
+    if (union_node->len > 1)
+      union_t_offset_list_insert(union_node);
   
   }
-  
+  else {
+    union_table()[label_info->union_label - 1].len = 0;
+    union_table()[label_info->union_label - 1].num = 0;
+  }
+
   return new_label;
 
 }

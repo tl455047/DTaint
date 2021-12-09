@@ -78,6 +78,8 @@
         "*.def": "cpp",
         "stddef.h": "c",
         "snapshot-inl.h": "c",
-        "fcntl.h": "c"
+        "fcntl.h": "c",
+        "wait.h": "c",
+        "waitflags.h": "c"
     }
 }

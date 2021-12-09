@@ -4,6 +4,7 @@
 #include <stdarg.h>
 #include <string.h>
 #include "dfsan_union_t.h"
+#include "config.h"
 typedef unsigned __int128 uint128_t;
 
 extern struct dfsan_label_info __dfsan_label_info;
@@ -37,36 +38,48 @@ extern struct dtaint_map *__afl_dtaint_map;
 extern "C" __attribute__((visibility("default")))
 void __dfsan_hook_debug_output() {
   
+  struct va_arg_label_t *__va_arg_label_t;
   for (int i = 0; i < DTAINT_MAP_W; i++) {
     
     if (!__afl_dtaint_map->headers[i].hits) continue;
 
+    fprintf(stderr, "header: id: %u hits: %u type: %u\n", 
+      i, 
+      __afl_dtaint_map->headers[i].hits,
+      __afl_dtaint_map->headers[i].type);
     /*switch (__afl_dtaint_map->headers[i].type) {
       case DFSH_VARARG_HOOK1: {
           
         fprintf(stderr, "header: id: %u hits: %u type: %u\n", 
-          __afl_dtaint_map->headers[i].id, 
+          i, 
           __afl_dtaint_map->headers[i].hits,
           __afl_dtaint_map->headers[i].type);
         fprintf(stderr, "hook va arg log: num: %u ptr_label: %u\n",
           __afl_dtaint_map->log[i][0].__va_arg_label_t.num,
           __afl_dtaint_map->log[i][0].__va_arg_label_t.ptr_label);
 
-        dfsan_label *p = __afl_dtaint_map->log[i][0].__va_arg_label_t.idx_label;
+        __va_arg_label_t = &__afl_dtaint_map->log[i][0].__va_arg_label_t;
         for (int j = 0; j < __afl_dtaint_map->log[i][0].__va_arg_label_t.num; j++) {
-          fprintf(stderr, "%u ", p[j]);
+          fprintf(stderr, "%u ", __va_arg_label_t->idx_label[j]);
         }fprintf(stderr, "\n");
         break;
       }
+      case DFSH_HOOK3:
+      case DFSH_HOOK4:
+      case DFSH_HOOK5:
+      case DFSH_HOOK6:
+      case DFSH_HOOK7: {
+        fprintf(stderr, "header: id: %u hits: %u type: %u\n", 
+          i, 
+          __afl_dtaint_map->headers[i].hits,
+          __afl_dtaint_map->headers[i].type);
+        break;
+      }
       default:
-        fprintf(stderr, "hook log: dst_label: %u src_label: %u value_label: %u size_label: %u\n",
-          __afl_dtaint_map->log[i][0].__label_t.dst_label,
-          __afl_dtaint_map->log[i][0].__label_t.src_label,
-          __afl_dtaint_map->log[i][0].__label_t.value_label,
-          __afl_dtaint_map->log[i][0].__label_t.size_label);
         break;
     }*/
-
+      
+    
   }
 
 }
@@ -92,7 +105,7 @@ void __dfsan_hook_debug_dump_offset_t() {
   }
 }
 
-extern "C" __attribute__((constructor)) 
+extern "C" __attribute__((constructor(100))) 
 void __dfsan_hook_debug_init() {
       
   fprintf(stderr, "__dfsan_debug_init\n");
@@ -114,20 +127,55 @@ void __dfsan_hook_debug_fini() {
     __dfsan_hook_debug_dump_offset_t();
 
   }
-  if(__afl_dtaint_map) 
+  if(__afl_dtaint_map && !getenv(DTAINT_SHM_ENV_VAR)) { 
     free(__afl_dtaint_map);
-
-}
-
-extern "C" __attribute__((visibility("default")))
-void __dfsan_hook_debug() {
-  
-  fprintf(stderr, "__dfsan_hook_debug\n");
-
+    __afl_dtaint_map = NULL;
+  }
 
 }
 
 #endif
+
+extern "C" __attribute__((visibility("default")))
+void __dfsan_hook_debug(unsigned int id, void* ptr, unsigned int src_type, unsigned int rst_type, 
+  unsigned int num_of_idx, ...) {
+  
+  //deal with vararg
+  va_list args;
+  int size, logged;
+  struct hook_va_arg_operand *__hook_va_arg;
+  #ifdef DTAINT_DEBUG
+  
+  /*if (num_of_idx > 8)
+    logged = 8;
+  else
+    logged = num_of_idx;
+
+  fprintf(stderr, "__dtaint_vararg_hook1: id: %u src_type: %u\
+    rst_type: %u num: %u ", id, src_type, rst_type, num_of_idx);
+    va_start(args, num_of_idx);
+
+  for(int j = 0; j < logged; j++) {
+    size = va_arg(args, int);
+    //fprintf(stderr, "type: %d ", size);
+    if (size <= sizeof(int))
+      fprintf(stderr, "idx %u ", va_arg(args, int));
+    else if (size == sizeof(long long))
+      fprintf(stderr, "idx: %llu ", va_arg(args, long long));
+
+  }fprintf(stderr, "\n");
+
+  va_end(args);*/
+ 
+  #endif
+}
+
+extern "C" __attribute__((destructor(0)))
+void ___dfsan_hook_fini() {
+
+  if (__afl_dtaint_map && __afl_dtaint_map->status != 1)
+    __afl_dtaint_map->status = 9487;
+}
 /**
  * Copy offset to shm.
  */
@@ -196,8 +244,8 @@ void __dfsan_hook3 (unsigned id, dfsan_label ptr_label, dfsan_label c_label,
   dfsan_label size_label) {
   
   #ifdef DTAINT_DEBUG
-  fprintf(stderr, "__dfsan_hook3: ptr_label: %u c_label: %u size_label: %u\n", 
-    ptr_label, c_label, size_label);
+  //fprintf(stderr, "__dfsan_hook3: id: %u ptr_label: %u c_label: %u size_label: %u\n", 
+  //  id, ptr_label, c_label, size_label);
   #endif 
 
   if (unlikely(!__afl_dtaint_map) || id >= DTAINT_MAP_W) return;
@@ -208,7 +256,7 @@ void __dfsan_hook3 (unsigned id, dfsan_label ptr_label, dfsan_label c_label,
     hits = 0;
     __afl_dtaint_map->headers[id].hits = 1;
     __afl_dtaint_map->headers[id].type = DFSH_HOOK3;
-
+  
   }
   else {
     
@@ -237,8 +285,8 @@ void __dfsan_hook4 (unsigned id, dfsan_label dst_label, dfsan_label src_label,
   dfsan_label size_label) {
 
   #ifdef DTAINT_DEBUG
-  fprintf(stderr, "__dfsan_hook4: dst_label: %u src_label: %u size_label: %u\n", 
-    dst_label, src_label, size_label);
+  //fprintf(stderr, "__dfsan_hook4: id: %u dst_label: %u src_label: %u size_label: %u\n", 
+  //  id, dst_label, src_label, size_label);
   #endif 
 
   if (unlikely(!__afl_dtaint_map) || id >= DTAINT_MAP_W) return;
@@ -277,7 +325,7 @@ extern "C" __attribute__((visibility("default")))
 void __dfsan_hook5 (unsigned id, dfsan_label size_label) {
   
   #ifdef DTAINT_DEBUG
-  fprintf(stderr, "__dfsan_hook5: size_label: %u\n", size_label);
+  //fprintf(stderr, "__dfsan_hook5: id: %u size_label: %u\n", id, size_label);
   #endif 
   
   if (unlikely(!__afl_dtaint_map) || id >= DTAINT_MAP_W) return;
@@ -311,7 +359,7 @@ extern "C" __attribute__((visibility("default")))
 void __dfsan_hook6 (unsigned id, dfsan_label ptr_label) {
   
   #ifdef DTAINT_DEBUG
-  fprintf(stderr, "__dfsan_hook6: ptr_label: %u\n", ptr_label);
+  //fprintf(stderr, "__dfsan_hook6: id: %u ptr_label: %u\n", id, ptr_label);
   #endif 
 
   if (unlikely(!__afl_dtaint_map) || id >= DTAINT_MAP_W) return;
@@ -346,7 +394,7 @@ extern "C" __attribute__((visibility("default")))
 void __dfsan_hook7 (unsigned id, dfsan_label ptr_label, dfsan_label size_label) {
 
   #ifdef DTAINT_DEBUG
-  fprintf(stderr, "__dfsan_hook7: ptr_label: %u size_label: %u\n", ptr_label, size_label);
+  //fprintf(stderr, "__dfsan_hook7: id: %u ptr_label: %u size_label: %u\n", id, ptr_label, size_label);
   #endif 
   
   if (unlikely(!__afl_dtaint_map) || id >= DTAINT_MAP_W) return;
@@ -385,8 +433,9 @@ void __dfsan_va_arg_hook1 (unsigned id, dfsan_label ptr_label, unsigned num_of_i
 
   va_list args;
   int size, logged;
+  struct va_arg_label_t *__va_arg_label_t;  
   #ifdef DTAINT_DEBUG
-  fprintf(stderr, "__dfsan_vararg_hook1: id: %u ptr_label: %u, num: %u\n", 
+  /*fprintf(stderr, "__dfsan_vararg_hook1: id: %u ptr_label: %u, num: %u\n", 
   id, ptr_label, num_of_idx);
 
   if (num_of_idx > DTAINT_MAXiMUM_IDX_NUM)
@@ -399,7 +448,7 @@ void __dfsan_va_arg_hook1 (unsigned id, dfsan_label ptr_label, unsigned num_of_i
     fprintf(stderr, "idx_label %u ", va_arg(args, int));
   }fprintf(stderr, "\n");
 
-  va_end(args);
+  va_end(args);*/
   #endif
 
   if (unlikely(!__afl_dtaint_map) || id >= DTAINT_MAP_W) return;
@@ -410,6 +459,8 @@ void __dfsan_va_arg_hook1 (unsigned id, dfsan_label ptr_label, unsigned num_of_i
     hits = 0;
     __afl_dtaint_map->headers[id].hits = 1;
     __afl_dtaint_map->headers[id].type = DFSH_VARARG_HOOK1;
+
+    __afl_dtaint_map->headers[id].id = id;
 
   }
   else {
@@ -425,19 +476,18 @@ void __dfsan_va_arg_hook1 (unsigned id, dfsan_label ptr_label, unsigned num_of_i
   else
     logged = num_of_idx;
 
-  __afl_dtaint_map->log[id][hits].__va_arg_label_t.num = logged;
-  __afl_dtaint_map->log[id][hits].__va_arg_label_t.ptr_label = ptr_label;
+  __va_arg_label_t = &__afl_dtaint_map->log[id][hits].__va_arg_label_t;
+  __va_arg_label_t->num = logged;
+  __va_arg_label_t->ptr_label = ptr_label;
   
   if (ptr_label != 0 && __afl_dtaint_map->label_info[ptr_label].num == 0) offset_cpy(ptr_label);
 
-  dfsan_label *p = __afl_dtaint_map->log[id][hits].__va_arg_label_t.idx_label;
-  
   dfsan_label label;
   va_start(args, num_of_idx);
   for(int i = 0; i < logged; i++) {
     
     label = va_arg(args, int);
-    *(p + i) = label;
+    __va_arg_label_t->idx_label[i] = label;
 
     if (label != 0 && __afl_dtaint_map->label_info[label].num == 0) {
       // do we need to check label ?

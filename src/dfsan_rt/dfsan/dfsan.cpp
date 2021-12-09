@@ -27,7 +27,7 @@
 
 #include "dfsan.h"
 #include "dfsan_union_t.h"
-
+#include "dtaint.h"
 using namespace __dfsan;
 
 //typedef atomic_uint32_t atomic_dfsan_label;
@@ -141,6 +141,7 @@ SANITIZER_INTERFACE_ATTRIBUTE uptr __dfsan_shadow_ptr_mask;
 int __dfsan::vmaSize;
 #endif
 
+extern struct dtaint_map *__afl_dtaint_map;
 //struct dfsan_union_t __dfsan_union_t;
 static uptr UnusedAddr() {
   return MappingArchImpl<MAPPING_UNION_TABLE_ADDR>()
@@ -150,6 +151,9 @@ static uptr UnusedAddr() {
 int dfsan_check_label(dfsan_label_info* label_info, dfsan_label label) {
   if(label <= label_info->input_label || (label >= label_info->union_label && label < DFSAN_UNION_T_SIZE)) 
     return 1;
+  
+  if (__afl_dtaint_map)
+    __afl_dtaint_map->status = 1;
   Report("FATAL: DataFlowSanitizer: union_t is full\n");
   Die();
   return 0;
@@ -319,31 +323,6 @@ void dfsan_set_label(dfsan_label label, void *addr, uptr size) {
   __dfsan_set_label(label, addr, size);
 }
 
-/**
- * In order to recognize input and propagation position.
- */
-extern "C" SANITIZER_INTERFACE_ATTRIBUTE
-void __dfsan_set_input_label(dfsan_label label, void *addr, uptr size) {
-  for (dfsan_label *labelp = shadow_for(addr); size != 0; --size, ++labelp) {
-    // Don't write the label if it is already the value we need it to be.
-    // In a program where most addresses are not labeled, it is common that
-    // a page of shadow memory is entirely zeroed.  The Linux copy-on-write
-    // implementation will share all of the zeroed pages, making a copy of a
-    // page when any value is written.  The un-sharing will happen even if
-    // the value written does not change the value in memory.  Avoiding the
-    // write when both |label| and |*labelp| are zero dramatically reduces
-    // the amount of real memory used by large programs.
-    if (label == *labelp)
-      continue;
-
-    *labelp = label;
-  }
-}
-
-SANITIZER_INTERFACE_ATTRIBUTE
-void dfsan_set_input_label(dfsan_label label, void *addr, uptr size) {
-  __dfsan_set_input_label(label, addr, size);
-}
 SANITIZER_INTERFACE_ATTRIBUTE
 void dfsan_add_label(dfsan_label label, void *addr, uptr size) {
   for (dfsan_label *labelp = shadow_for(addr); size != 0; --size, ++labelp)

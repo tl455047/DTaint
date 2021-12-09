@@ -1,0 +1,40 @@
+DFSan init
+DFSan debug
+__dfsan_debug_init
+__dfsan_vararg_hook1: id: 13871 ptr_label: 0, num: 2
+idx_label 0 idx_label 0 
+__dfsan_hook3: ptr_label: 0 c_label: 0 size_label: 0
+__dfsan_vararg_hook1: id: 13873 ptr_label: 0, num: 1
+idx_label 0 
+__dfsan_vararg_hook1: id: 13874 ptr_label: 0, num: 2
+idx_label 0 idx_label 0 
+__dfsan_vararg_hook1: id: 13875 ptr_label: 0, num: 2
+idx_label 0 idx_label 0 
+size: 102
+__dfsan_vararg_hook1: id: 13876 ptr_label: 0, num: 2
+idx_label 0 idx_label 131071 
+__dfsan_vararg_hook1: id: 13877 ptr_label: 0, num: 2
+idx_label 0 idx_label 131071 
+__dfsan_hook_debug_fini
+header: id: 13871 hits: 1 type: 9
+hook va arg log: num: 2 ptr_label: 0
+0 0 
+hook log: dst_label: 0 src_label: 0 value_label: 0 size_label: 0
+header: id: 13873 hits: 1 type: 9
+hook va arg log: num: 1 ptr_label: 0
+0 
+header: id: 13874 hits: 1 type: 9
+hook va arg log: num: 2 ptr_label: 0
+0 0 
+header: id: 13875 hits: 1 type: 9
+hook va arg log: num: 2 ptr_label: 0
+0 0 
+header: id: 13876 hits: 1 type: 9
+hook va arg log: num: 2 ptr_label: 0
+0 131071 
+header: id: 13877 hits: 1 type: 9
+hook va arg log: num: 2 ptr_label: 0
+0 131071 
+label info: label: 131071 len: 2 num: 2
+offset_t: pos: 2 len: 1 pos: 9 len: 1 
+DFSan fini

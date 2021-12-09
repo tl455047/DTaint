@@ -1,0 +1,34 @@
+__memlog_debug_init
+__memlog_vararg_hook1: id: 13871 ptr: 0x7fffffffdc40 src_type: 512    rst_type: 1 num: 2
+idx: 0 idx: 0 
+__memlog_hook3: id: 13872 ptr: 0x7fffffffdc40 c: 0 size: 512
+__memlog_vararg_hook1: id: 13873 ptr: 0x7fffffffdf58 src_type: 8    rst_type: 8 num: 1
+idx: 1 
+__memlog_vararg_hook1: id: 13874 ptr: 0x7fffffffdc40 src_type: 512    rst_type: 1 num: 2
+idx: 0 idx: 9 
+__memlog_vararg_hook1: id: 13875 ptr: 0x7fffffffdc40 src_type: 512    rst_type: 1 num: 2
+idx: 0 idx: 2 
+size: 102
+__memlog_vararg_hook1: id: 13876 ptr: 0x7fffffffdc40 src_type: 512    rst_type: 1 num: 2
+idx: 0 idx: 612 
+__memlog_vararg_hook1: id: 13877 ptr: 0x7fffffffdc40 src_type: 512    rst_type: 1 num: 2
+idx: 0 idx: 613 
+__memlog_debug_fini
+header: id: 13871 hits: 1 type: 9
+hook va arg log: num: 0x2 ptr: 0x7fffffffdc40
+0 0 
+header: id: 13873 hits: 1 type: 9
+hook va arg log: num: 0x1 ptr: 0x7fffffffdf58
+1 
+header: id: 13874 hits: 1 type: 9
+hook va arg log: num: 0x2 ptr: 0x7fffffffdc40
+0 9 
+header: id: 13875 hits: 1 type: 9
+hook va arg log: num: 0x2 ptr: 0x7fffffffdc40
+0 2 
+header: id: 13876 hits: 1 type: 9
+hook va arg log: num: 0x2 ptr: 0x7fffffffdc40
+0 612 
+header: id: 13877 hits: 1 type: 9
+hook va arg log: num: 0x2 ptr: 0x7fffffffdc40
+0 613 
