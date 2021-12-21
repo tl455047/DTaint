@@ -613,7 +613,7 @@ public:
 
 unsigned DataFlowSanitizer::HookID = 0;
 const std::string DataFlowSanitizer::HookIDFileName = "/tmp/.DtaintHookID.txt";
-const unsigned int DataFlowSanitizer::DtaintMapW = 65536 * 2;
+const unsigned int DataFlowSanitizer::DtaintMapW = 65536;
 
 char DataFlowSanitizer::ID;
 

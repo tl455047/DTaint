@@ -1,6 +1,6 @@
 #ifndef _MEMLOG_H_
 #define _MEMLOG_H_
-#define MEMLOG_MAP_W 2 << 16
+#define MEMLOG_MAP_W (1 << 16)
 #define MEMLOG_MAP_H 32
 #define MEMLOG_MAXiMUM_IDX_NUM 8
 
@@ -90,7 +90,12 @@ struct memlog_map {
   
   struct memlog_header headers[MEMLOG_MAP_W];
   union hook_operands log[MEMLOG_MAP_W][MEMLOG_MAP_H]; 
-  unsigned int status;
+  /**
+   * current memlog map header hash
+   * used to distinguish different path
+   * 
+   */
+  unsigned long long cksum[MEMLOG_MAP_W][MEMLOG_MAP_H];
 
 };
 

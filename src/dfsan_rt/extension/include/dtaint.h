@@ -1,7 +1,7 @@
 #ifndef _DTAINT_H_
 #define _DTAINT_H_
 
-#define DTAINT_MAP_W 2 << 16
+#define DTAINT_MAP_W 1 << 16
 #define DTAINT_MAP_H 32
 #define DTAINT_MAXiMUM_IDX_NUM 8
 

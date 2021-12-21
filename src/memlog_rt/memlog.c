@@ -1,9 +1,20 @@
 #include <stdio.h>
 #include <stdarg.h>
+#include <string.h>
 #include "memlog.h"
 #include "types.h"
 #include "config.h"
-#include <string.h>
+
+#define XXH_INLINE_ALL
+#include "xxhash.h"
+#undef XXH_INLINE_ALL
+
+u64 hash64(u8 *key, u32 len, u64 seed) {
+
+  return XXH64(key, len, seed);
+
+}
+
 typedef unsigned __int128 uint128_t;
 
 extern struct memlog_map *__afl_memlog_map;
@@ -38,12 +49,11 @@ void __memlog_debug_output() {
   for (int i = 0; i < MEMLOG_MAP_W; i++) {
     
     if (!__afl_memlog_map->headers[i].hits) continue;
-    
-    
-     fprintf(stderr, "header: id: %u hits: %u type: %u\n", 
-          i, 
-          __afl_memlog_map->headers[i].hits,
-          __afl_memlog_map->headers[i].type);
+  
+    fprintf(stderr, "header: id: %u hits: %u type: %u\n", 
+      i, 
+      __afl_memlog_map->headers[i].hits,
+      __afl_memlog_map->headers[i].type);
     /*switch (__afl_memlog_map->headers[i].type) {
       case HT_VARARG_HOOK1:
           
@@ -79,7 +89,7 @@ void __memlog_debug_output() {
 
 }
 
-__attribute__((constructor(100))) 
+__attribute__((constructor)) 
 void __memlog_debug_init() {
       
   fprintf(stderr, "__memlog_debug_init\n");
@@ -95,35 +105,14 @@ __attribute__((destructor))
 void __memlog_debug_fini() {
 
   fprintf(stderr, "__memlog_debug_fini\n");
-  if (__afl_memlog_map)
+  if (__afl_memlog_map) 
     __memlog_debug_output();
-
+  
   if(__afl_memlog_map && !getenv(MEMLOG_SHM_ENV_VAR)) {
     free(__afl_memlog_map);
     __afl_memlog_map = NULL;
   }
 
-}
-
-void __memlog_hook_va_arg_debug(int num1, void* num2, double num3, int num_of_idx, ...) {
- 
-  fprintf(stderr, "num1: %d num2: %p num3: %lf num4: %d\n", num1, num2, num3, num_of_idx);
-
-  va_list args;
-  va_start(args, num_of_idx);
-  
-  //for(int j = 0; j < num_of_idx; j++) {
-  fprintf(stderr, "float: %lf\n", va_arg(args, double));
-  
-  fprintf(stderr, "int64: %p\n", va_arg(args, int64_t));
-
-  __int128_t val = va_arg(args, __int128_t);
-
-  fprintf(stderr, "upper: %p lower: %p\n", (uint64_t)(val >> 64), (uint64_t)(val));
-  
-    //}
-  va_end(args);
-  
 }
 
 #endif
@@ -149,12 +138,6 @@ void __memlog_hook_debug(u32 id) {
   }
 }
 
-__attribute__((destructor(0)))
-void _memlog_hook_fini() {
-
-  if (__afl_memlog_map && __afl_memlog_map->status != 1)
-  __afl_memlog_map->status = 9487;
-}
 /**
  * ex. load inst.
  */
@@ -289,7 +272,6 @@ void __memlog_hook2_int128(u32 id, uint128_t value, u32 src_type,
   }
   
   hits &= MEMLOG_MAP_H - 1;
-  
   __afl_memlog_map->log[id][hits].__hook_op.dst = ptr;
   __afl_memlog_map->log[id][hits].__hook_op.value = (uint64_t)value;
   __afl_memlog_map->log[id][hits].__hook_op.value_128 = (uint64_t)(value >> 64);
@@ -327,6 +309,11 @@ void __memlog_hook3(u32 id, void* ptr, int c, size_t size) {
   }
   
   hits &= MEMLOG_MAP_H - 1;
+
+  // calculate current memlog ma headers hashs
+  // can be used to distinguish different path
+  __afl_memlog_map->cksum[id][hits] = hash64((void *)__afl_memlog_map->headers, MEMLOG_MAP_W * sizeof(struct memlog_header), HASH_CONST);
+
   __afl_memlog_map->log[id][hits].__hook_op.dst = ptr;
   __afl_memlog_map->log[id][hits].__hook_op.value = c;
   __afl_memlog_map->log[id][hits].__hook_op.size = size;
@@ -364,6 +351,11 @@ void __memlog_hook4(u32 id, void* dst, void* src, size_t size) {
   }
 
   hits &= MEMLOG_MAP_H - 1;
+
+  // calculate current memlog ma headers hashs
+  // can be used to distinguish different path
+  __afl_memlog_map->cksum[id][hits] = hash64((void *)__afl_memlog_map->headers, MEMLOG_MAP_W * sizeof(struct memlog_header), HASH_CONST);
+
   __afl_memlog_map->log[id][hits].__hook_op.dst = dst;
   __afl_memlog_map->log[id][hits].__hook_op.src = src;
   __afl_memlog_map->log[id][hits].__hook_op.size = size;
@@ -400,6 +392,11 @@ void __memlog_hook5(u32 id, size_t size) {
   }
 
   hits &= MEMLOG_MAP_H - 1;
+
+  // calculate current memlog ma headers hashs
+  // can be used to distinguish different path
+  __afl_memlog_map->cksum[id][hits] = hash64((void *)__afl_memlog_map->headers, MEMLOG_MAP_W  * sizeof(struct memlog_header), HASH_CONST);
+
   __afl_memlog_map->log[id][hits].__hook_op.size = size;
   
 }
@@ -431,6 +428,11 @@ void __memlog_hook6(u32 id, void* ptr) {
   }
 
   hits &= MEMLOG_MAP_H - 1;
+
+  // calculate current memlog ma headers hashs
+  // can be used to distinguish different path
+  __afl_memlog_map->cksum[id][hits] = hash64((void *)__afl_memlog_map->headers, MEMLOG_MAP_W * sizeof(struct memlog_header), HASH_CONST);
+
   __afl_memlog_map->log[id][hits].__hook_op.src = ptr;
 
 }
@@ -465,6 +467,11 @@ void __memlog_hook7(u32 id, void* ptr, size_t size) {
   }
 
   hits &= MEMLOG_MAP_H - 1;
+
+  // calculate current memlog ma headers hashs
+  // can be used to distinguish different path
+  __afl_memlog_map->cksum[id][hits] = hash64((void *)__afl_memlog_map->headers, MEMLOG_MAP_W * sizeof(struct memlog_header), HASH_CONST);
+
   __afl_memlog_map->log[id][hits].__hook_op.src = ptr;
   __afl_memlog_map->log[id][hits].__hook_op.size = size;
 
@@ -481,7 +488,6 @@ void __memlog_va_arg_hook1(u32 id, void* ptr, u32 src_type, u32 rst_type,
   int size, logged;
   struct hook_va_arg_operand *__hook_va_arg;
   #ifdef MEMLOG_DEBUG
-  
   /*if (num_of_idx > MEMLOG_MAXiMUM_IDX_NUM)
     logged = MEMLOG_MAXiMUM_IDX_NUM;
   else
@@ -517,7 +523,6 @@ void __memlog_va_arg_hook1(u32 id, void* ptr, u32 src_type, u32 rst_type,
     __afl_memlog_map->headers[id].src_shape = src_type;
     __afl_memlog_map->headers[id].rst_shape = rst_type;
 
-    __afl_memlog_map->headers[id].id = id;
   }
   else {
     
@@ -526,7 +531,11 @@ void __memlog_va_arg_hook1(u32 id, void* ptr, u32 src_type, u32 rst_type,
   }
   
   hits &= MEMLOG_MAP_H - 1;
-  
+
+  // calculate current memlog ma headers hashs
+  // can be used to distinguish different path
+  __afl_memlog_map->cksum[id][hits] = hash64((void *)__afl_memlog_map->headers, MEMLOG_MAP_W * sizeof(struct memlog_header), HASH_CONST);
+
   if (num_of_idx > MEMLOG_MAXiMUM_IDX_NUM)
     logged = MEMLOG_MAXiMUM_IDX_NUM;
   else
@@ -549,8 +558,5 @@ void __memlog_va_arg_hook1(u32 id, void* ptr, u32 src_type, u32 rst_type,
   }
   va_end(args);
 
-  #ifdef MEMLOG_DEBUG
-  // Try to dereference value of aggregate type.
-  #endif
 
 }

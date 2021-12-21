@@ -80,6 +80,9 @@
         "snapshot-inl.h": "c",
         "fcntl.h": "c",
         "wait.h": "c",
-        "waitflags.h": "c"
+        "waitflags.h": "c",
+        "memlog.h": "c",
+        "hash.h": "c",
+        "xxhash.h": "c"
     }
 }

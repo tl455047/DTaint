@@ -79,7 +79,7 @@ static void memlog_pass() {
   
   cc_params[cc_par_cnt++] = "-mllvm";
   cc_params[cc_par_cnt++] = 
-        alloc_printf("-memlog-debug=1", obj_path);
+        alloc_printf("-memlog-debug=0", obj_path);
 
 }
 
@@ -325,13 +325,17 @@ static void edit_params(u32 argc, char** argv) {
     cc_params[cc_par_cnt++] = "-funroll-loops";
   }
   
-  if (getenv("MEMLOG_MODE")) {
-    memlog_pass(); 
+  if (getenv("DFSAN_MODE")) {
+    
+    dfsan_pass();
+  
   }
   else {
-    dfsan_pass();
+    
+    memlog_pass(); 
     
   }
+
   memlog_runtime();
   dfsan_runtime();
   afl_runtime();

@@ -220,6 +220,7 @@ class MemlogPass: public ModulePass, public InstVisitor<MemlogPass> {
     FunctionCallee MemlogVaArgHook1Func;
 
     static unsigned HookID;
+    static unsigned OrigHookID;
     static const std::string HookIDFileName;
     static const unsigned int MemlogMapW;
     public:
@@ -235,11 +236,13 @@ class MemlogPass: public ModulePass, public InstVisitor<MemlogPass> {
 
             std::fstream InFile;
             InFile.open(HookIDFileName, std::ios::in | std::ios::out);
-            if (InFile.eof())
+            if (InFile.eof()) 
                 HookID = 0;
             else 
                 InFile >> HookID;
             InFile.close();
+            
+            OrigHookID = HookID;
 
         }
 
@@ -289,14 +292,13 @@ class MemlogPass: public ModulePass, public InstVisitor<MemlogPass> {
 }
 
 unsigned MemlogPass::HookID = 0;
+unsigned MemlogPass::OrigHookID = 0;
 const std::string MemlogPass::HookIDFileName = "/tmp/.MemlogHookID.txt";
-const unsigned int MemlogPass::MemlogMapW = 65536 * 2;
+const unsigned int MemlogPass::MemlogMapW = 65536;
 
 char MemlogPass::ID = 0;
 
 bool MemlogPass::doInitialization(Module &M) {
-
-    errs() << getPassName() << " " << HookID << " init\n";
 
     TaintDataLayout = &M.getDataLayout();
     // get type
@@ -480,6 +482,8 @@ bool MemlogPass::runOnModule(Module &M) {
         
     }*/
 
+    errs() << "\x1b[0;36mMemlog Instrumentation\x1b[0m\n";
+    errs() << "[+] Instrumented \x1b[0;36m"<< HookID % MemlogMapW - OrigHookID << "\x1b[0m locations\n";
     std::fstream OutFile;
     OutFile.open(HookIDFileName, std::ios::out | std::ios::trunc);
     OutFile << HookID % MemlogMapW;

@@ -1182,6 +1182,7 @@ static void __afl_start_forkserver(void) {
 
         close(FORKSRV_FD);
         close(FORKSRV_FD + 1);
+  
         return;
 
       }
