@@ -1,5 +1,5 @@
 # DTaint README
-# DTaint: taint analysis based DFSan and llvm instrumentation
+# DTaint: taint analysis based on DFSan and llvm instrumentation
 - This project contains propagation-based taint analysis based on llvm **DFSan**, and inference-based taint analysis **Memlog** based on llvm Pass, which are used for support memory feedback fuzzing.
 ## DFSan
 - 一個沒有什麼卵用的玩具。
@@ -142,7 +142,7 @@
 
 ## Memlog
 - Inference-based taint analysis需要的插樁code。
-- ~~Inference-based才是未來的趨勢啊。~~
+- 關鍵的inference-based taint code不在這裡:)
 - 未來預定整進AFLplusplus，這裡就懶得講了。
 ## Reference
 [Angora](https://web.cs.ucdavis.edu/~hchen/paper/chen2018angora.pdf)
