@@ -1,4 +1,3 @@
-# DTaint README
 # DTaint: taint analysis based on DFSan and llvm instrumentation
 - This project contains propagation-based taint analysis based on llvm **DFSan**, and inference-based taint analysis **Memlog** based on llvm Pass, which are used for support memory feedback fuzzing.
 ## DFSan
