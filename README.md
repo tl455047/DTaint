@@ -3,7 +3,8 @@
 ## DFSan
 - 一個沒有什麼卵用的玩具。
 - 估計原因:外部呼叫跟隱性control flow
-最近才發現[Greyone](https://www.usenix.org/system/files/sec20-gan.pdf)中已經有討論過DFSan在實際應用中的效果，跟我實際實作後的結論差不多。由於DFSan是透過編譯階段插樁實現的，對於許多外部呼叫缺乏對應的實作，造成propagation容易在程式執行初期便失去作用。導致這東西變成了無法在real world使用的花架子。 
+
+- 最近才發現[Greyone](https://www.usenix.org/system/files/sec20-gan.pdf)中已經有討論過DFSan在實際應用中的效果，跟我實際實作後的結論差不多。由於DFSan是透過編譯階段插樁實現的，對於許多外部呼叫缺乏對應的實作，造成propagation容易在程式執行初期便失去作用。導致這東西變成了無法在real world使用的花架子。 
 ### Features
 #### Label Propagation
 - Each memory byte is binded with a label, which represents the state of this byte(ex. tainted or non tainted).
