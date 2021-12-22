@@ -88,10 +88,12 @@ union hook_operands {
 
 struct memlog_map {
   
+  /* used for path hash calculation, for speed, just one byte */
+  unsigned char hits[MEMLOG_MAP_W];
   struct memlog_header headers[MEMLOG_MAP_W];
   union hook_operands log[MEMLOG_MAP_W][MEMLOG_MAP_H]; 
   /**
-   * current memlog map header hash
+   * current memlog map hash
    * used to distinguish different path
    * 
    */

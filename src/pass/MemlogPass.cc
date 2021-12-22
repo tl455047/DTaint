@@ -26,10 +26,6 @@ static cl::list<std::string> ClHookABIListFiles(
     cl::desc("File listing native ABI functions and how the pass hooks them."),
     cl::Hidden);
 
-static cl::list<std::string> ClABIListFiles(
-    "memlog-dfsan-abilist",
-    cl::desc("File listing native ABI functions and how the pass treats them"),
-    cl::Hidden);
 // for debug
 static cl::opt<bool> ClDebug(
     "memlog-debug",
@@ -87,43 +83,6 @@ class HookABIList {
   }
 };
 
-class DFSanABIList {
-  std::unique_ptr<SpecialCaseList> SCL;
-
- public:
-  DFSanABIList() = default;
-
-  void set(std::unique_ptr<SpecialCaseList> List) { SCL = std::move(List); }
-
-  /// Returns whether either this function or its source file are listed in the
-  /// given category.
-  bool isIn(const Function &F, StringRef Category) const {
-    return isIn(*F.getParent(), Category) ||
-           SCL->inSection("dataflow", "fun", F.getName(), Category);
-  }
-
-  /// Returns whether this global alias is listed in the given category.
-  ///
-  /// If GA aliases a function, the alias's name is matched as a function name
-  /// would be.  Similarly, aliases of globals are matched like globals.
-  bool isIn(const GlobalAlias &GA, StringRef Category) const {
-    if (isIn(*GA.getParent(), Category))
-      return true;
-
-    if (isa<FunctionType>(GA.getValueType()))
-      return SCL->inSection("dataflow", "fun", GA.getName(), Category);
-
-    return SCL->inSection("dataflow", "global", GA.getName(), Category) ||
-           SCL->inSection("dataflow", "type", GetGlobalTypeString(GA),
-                          Category);
-  }
-
-  /// Returns whether this module is listed in the given category.
-  bool isIn(const Module &M, StringRef Category) const {
-    return SCL->inSection("dataflow", "src", M.getModuleIdentifier(), Category);
-  }
-};
-
 class MemlogPass: public ModulePass, public InstVisitor<MemlogPass> {
 
     // Decide which type of hook functions the call belongs to. 
@@ -161,35 +120,10 @@ class MemlogPass: public ModulePass, public InstVisitor<MemlogPass> {
         
     };
 
-    /// How should calls to uninstrumented functions be handled?
-    enum WrapperKind {
-        /// This function is present in an uninstrumented form but we don't know
-        /// how it should be handled.  Print a warning and call the function anyway.
-        /// Don't label the return value.
-        WK_Warning,
-
-        /// This function does not write to (user-accessible) memory, and its return
-        /// value is unlabelled.
-        WK_Discard,
-
-        /// This function does not write to (user-accessible) memory, and the label
-        /// of its return value is the union of the label of its arguments.
-        WK_Functional,
-
-        /// Instead of calling the function, a custom wrapper __dfsw_F is called,
-        /// where F is the name of the function.  This function may wrap the
-        /// original function or provide its own implementation.  This is similar to
-        /// the IA_Args ABI, except that IA_Args uses a struct return type to
-        /// pass the return value shadow in a register, while WK_Custom uses an
-        /// extra pointer argument to return the shadow.  This allows the wrapped
-        /// form of the function type to be expressed in C.
-        WK_Custom
-    };
     const DataLayout *TaintDataLayout;
     
     HookABIList __HookABIList; 
-    DFSanABIList ABIList;
-
+  
     Type *Int64PtrTy;
     Type *Int8Ty;
     Type *Int32Ty;
@@ -228,9 +162,6 @@ class MemlogPass: public ModulePass, public InstVisitor<MemlogPass> {
         
         MemlogPass(): ModulePass(ID) { 
             
-            ABIList.set(
-            SpecialCaseList::createOrDie(ClABIListFiles, *vfs::getRealFileSystem()));
-            
             __HookABIList.set(
             SpecialCaseList::createOrDie(ClHookABIListFiles, *vfs::getRealFileSystem()));
 
@@ -252,10 +183,7 @@ class MemlogPass: public ModulePass, public InstVisitor<MemlogPass> {
 
         bool doInitialization(Module &M) override;
         bool runOnModule(Module &M) override;
-        
-        WrapperKind getWrapperKind(Function *F);
-        bool isInstrumented(const Function *F);
-        bool isInstrumented(const GlobalAlias *GA);
+    
         bool shouldHook(const Function *F);
         HookType getHookType(const Function *F);
         void whichType(Type *T);
@@ -361,106 +289,7 @@ bool MemlogPass::runOnModule(Module &M) {
         
     }*/
 
-    std::vector<Function *> FnsToInstrument;
     for (Function &F : M) {
-    
-        if (!F.isIntrinsic() && 
-                &F != MemlogHookDebugFunc.getCallee()->stripPointerCasts() &&
-                &F != MemlogHook1Func.getCallee()->stripPointerCasts() &&
-                &F != MemlogHook2Func.getCallee()->stripPointerCasts() &&
-                &F != MemlogHook2Int128Func.getCallee()->stripPointerCasts() &&
-                &F != MemlogHook3Func.getCallee()->stripPointerCasts() &&
-                &F != MemlogHook4Func.getCallee()->stripPointerCasts() &&
-                &F != MemlogHook5Func.getCallee()->stripPointerCasts() &&
-                &F != MemlogHook6Func.getCallee()->stripPointerCasts() &&
-                &F != MemlogHook7Func.getCallee()->stripPointerCasts() &&
-                &F != MemlogVaArgHook1Func.getCallee()->stripPointerCasts()) {
-            //errs() << F.getName() << "\n";
-            //visit(F);
-            FnsToInstrument.push_back(&F);
-        }
-        
-    }
-    
-    // Give function aliases prefixes when necessary, and build wrappers where the
-    // instrumentedness is inconsistent.
-    for (Module::alias_iterator i = M.alias_begin(), e = M.alias_end(); i != e;) {
-        GlobalAlias *GA = &*i;
-        ++i;
-        // Don't stop on weak.  We assume people aren't playing games with the
-        // instrumentedness of overridden weak aliases.
-        if (auto F = dyn_cast<Function>(GA->getBaseObject())) {
-            bool GAInst = isInstrumented(GA), FInst = isInstrumented(F);
-            if (GAInst && FInst) {
-            } else if (GAInst != FInst) {
-            }
-        }
-    }
-    // First, change the ABI of every function in the module.  ABI-listed
-    // functions keep their original ABI and get a wrapper function.
-    for (std::vector<Function *>::iterator i = FnsToInstrument.begin(),
-                                            e = FnsToInstrument.end();
-        i != e; ++i) {
-        Function &F = **i;
-        FunctionType *FT = F.getFunctionType();
-        
-        bool IsZeroArgsVoidRet = (FT->getNumParams() == 0 && !FT->isVarArg() &&
-                                FT->getReturnType()->isVoidTy());
-
-        if (isInstrumented(&F)) {
-      
-        } else if (!IsZeroArgsVoidRet || getWrapperKind(&F) == WK_Custom) {
-
-            *i = nullptr;
-            if (!F.isDeclaration()) {
-                // This function is probably defining an interposition of an
-                // uninstrumented function and hence needs to keep the original ABI.
-                // But any functions it may call need to use the instrumented ABI, so
-                // we instrument it in a mode which preserves the original ABI.
-                // This code needs to rebuild the iterators, as they may be invalidated
-                // by the push_back, taking care that the new range does not include
-                // any functions added by this code.
-                size_t N = i - FnsToInstrument.begin(),
-                    Count = e - FnsToInstrument.begin();
-                FnsToInstrument.push_back(&F);
-                i = FnsToInstrument.begin() + N;
-                e = FnsToInstrument.begin() + Count;
-            }
-                // Hopefully, nobody will try to indirectly call a vararg
-                // function... yet.
-        } else if (FT->isVarArg()) {
-            *i = nullptr;
-        }
-    }
-
-    for (Function *i : FnsToInstrument) {
-        if (!i || i->isDeclaration())
-            continue;
-
-        removeUnreachableBlocks(*i);
-        //errs() << i->getName() << "\n";
-        SmallVector<BasicBlock *, 4> BBList(depth_first(&i->getEntryBlock()));
-        for (BasicBlock *i : BBList) {
-            Instruction *Inst = &i->front();
-            while (true) {
-                // DFSanVisitor may split the current basic block, changing the current
-                // instruction's next pointer and moving the next instruction to the
-                // tail block from which we should continue.
-                Instruction *Next = Inst->getNextNode();
-                // DFSanVisitor may delete Inst, so keep track of whether it was a
-                // terminator.
-                bool IsTerminator = Inst->isTerminator();
-                visit(Inst);
-                if (IsTerminator)
-                break;
-                Inst = Next;
-            }
-        }
-        //visit(i);
-
-    }
-
-    /*for (Function &F : M) {
     
         if (!F.isIntrinsic() && 
                 &F != MemlogHookDebugFunc.getCallee()->stripPointerCasts() &&
@@ -480,9 +309,9 @@ bool MemlogPass::runOnModule(Module &M) {
             visit(F);
         }
         
-    }*/
+    }
 
-    errs() << "\x1b[0;36mMemlog Instrumentation\x1b[0m\n";
+    errs() << "\x1b[0;36mMemlog Instrumentation\x1b[0m start ID: \x1b[0;36m" << HookID << "\x1b[0m\n";
     errs() << "[+] Instrumented \x1b[0;36m"<< HookID % MemlogMapW - OrigHookID << "\x1b[0m locations\n";
     std::fstream OutFile;
     OutFile.open(HookIDFileName, std::ios::out | std::ios::trunc);
@@ -492,25 +321,6 @@ bool MemlogPass::runOnModule(Module &M) {
     return true;
 }
 
-
-bool MemlogPass::isInstrumented(const Function *F) {
-    return !ABIList.isIn(*F, "uninstrumented");
-}
-
-bool MemlogPass::isInstrumented(const GlobalAlias *GA) {
-  return !ABIList.isIn(*GA, "uninstrumented");
-}
-
-MemlogPass::WrapperKind MemlogPass::getWrapperKind(Function *F) {
-  if (ABIList.isIn(*F, "functional"))
-    return WK_Functional;
-  if (ABIList.isIn(*F, "discard"))
-    return WK_Discard;
-  if (ABIList.isIn(*F, "custom"))
-    return WK_Custom;
-
-  return WK_Warning;
-}
 bool MemlogPass::shouldHook(const Function *F) {
     return __HookABIList.isIn(*F, "hook");
 }

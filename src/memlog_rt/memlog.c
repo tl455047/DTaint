@@ -301,10 +301,16 @@ void __memlog_hook3(u32 id, void* ptr, int c, size_t size) {
     __afl_memlog_map->headers[id].src_shape = 1;
     __afl_memlog_map->headers[id].rst_shape = 1;
 
+    // used for hash calculating
+    __afl_memlog_map->hits[id] = 1;
+
   }
   else {
     
     hits = __afl_memlog_map->headers[id].hits++;
+
+    // used for hash calculating
+    __afl_memlog_map->hits[id]++;
 
   }
   
@@ -312,7 +318,7 @@ void __memlog_hook3(u32 id, void* ptr, int c, size_t size) {
 
   // calculate current memlog ma headers hashs
   // can be used to distinguish different path
-  __afl_memlog_map->cksum[id][hits] = hash64((void *)__afl_memlog_map->headers, MEMLOG_MAP_W * sizeof(struct memlog_header), HASH_CONST);
+  __afl_memlog_map->cksum[id][hits] = hash64((void *)__afl_memlog_map->hits, MEMLOG_MAP_W, HASH_CONST);
 
   __afl_memlog_map->log[id][hits].__hook_op.dst = ptr;
   __afl_memlog_map->log[id][hits].__hook_op.value = c;
@@ -343,18 +349,24 @@ void __memlog_hook4(u32 id, void* dst, void* src, size_t size) {
     __afl_memlog_map->headers[id].src_shape = 1;
     __afl_memlog_map->headers[id].rst_shape = 1;
 
+    // used for hash calculating
+    __afl_memlog_map->hits[id] = 1;
+ 
   }
   else {
     
     hits = __afl_memlog_map->headers[id].hits++;
 
+    // used for hash calculating
+    __afl_memlog_map->hits[id]++;
+    
   }
 
   hits &= MEMLOG_MAP_H - 1;
 
   // calculate current memlog ma headers hashs
   // can be used to distinguish different path
-  __afl_memlog_map->cksum[id][hits] = hash64((void *)__afl_memlog_map->headers, MEMLOG_MAP_W * sizeof(struct memlog_header), HASH_CONST);
+  __afl_memlog_map->cksum[id][hits] = hash64((void *)__afl_memlog_map->hits, MEMLOG_MAP_W, HASH_CONST);
 
   __afl_memlog_map->log[id][hits].__hook_op.dst = dst;
   __afl_memlog_map->log[id][hits].__hook_op.src = src;
@@ -384,10 +396,16 @@ void __memlog_hook5(u32 id, size_t size) {
     __afl_memlog_map->headers[id].src_shape = 1;
     __afl_memlog_map->headers[id].rst_shape = 1;
 
+    // used for hash calculating
+    __afl_memlog_map->hits[id] = 1;
+
   }
   else {
     
     hits = __afl_memlog_map->headers[id].hits++;
+
+    // used for hash calculating
+    __afl_memlog_map->hits[id]++;
 
   }
 
@@ -395,7 +413,7 @@ void __memlog_hook5(u32 id, size_t size) {
 
   // calculate current memlog ma headers hashs
   // can be used to distinguish different path
-  __afl_memlog_map->cksum[id][hits] = hash64((void *)__afl_memlog_map->headers, MEMLOG_MAP_W  * sizeof(struct memlog_header), HASH_CONST);
+  __afl_memlog_map->cksum[id][hits] = hash64((void *)__afl_memlog_map->hits, MEMLOG_MAP_W, HASH_CONST);
 
   __afl_memlog_map->log[id][hits].__hook_op.size = size;
   
@@ -420,18 +438,22 @@ void __memlog_hook6(u32 id, void* ptr) {
     __afl_memlog_map->headers[id].hits = 1;
     __afl_memlog_map->headers[id].type = HT_HOOK6;
 
+    // used for hash calculating
+    __afl_memlog_map->hits[id] = 1;
   }
   else {
     
     hits = __afl_memlog_map->headers[id].hits++;
-  
+
+    // used for hash calculating
+    __afl_memlog_map->hits[id]++;
   }
 
   hits &= MEMLOG_MAP_H - 1;
 
   // calculate current memlog ma headers hashs
   // can be used to distinguish different path
-  __afl_memlog_map->cksum[id][hits] = hash64((void *)__afl_memlog_map->headers, MEMLOG_MAP_W * sizeof(struct memlog_header), HASH_CONST);
+  __afl_memlog_map->cksum[id][hits] = hash64((void *)__afl_memlog_map->hits, MEMLOG_MAP_W, HASH_CONST);
 
   __afl_memlog_map->log[id][hits].__hook_op.src = ptr;
 
@@ -459,10 +481,15 @@ void __memlog_hook7(u32 id, void* ptr, size_t size) {
     __afl_memlog_map->headers[id].src_shape = 1;
     __afl_memlog_map->headers[id].rst_shape = 1;
 
+    // used for hash calculating
+    __afl_memlog_map->hits[id] = 1;
   }
   else {
     
     hits = __afl_memlog_map->headers[id].hits++;
+
+    // used for hash calculating
+    __afl_memlog_map->hits[id]++;
 
   }
 
@@ -470,7 +497,7 @@ void __memlog_hook7(u32 id, void* ptr, size_t size) {
 
   // calculate current memlog ma headers hashs
   // can be used to distinguish different path
-  __afl_memlog_map->cksum[id][hits] = hash64((void *)__afl_memlog_map->headers, MEMLOG_MAP_W * sizeof(struct memlog_header), HASH_CONST);
+  __afl_memlog_map->cksum[id][hits] = hash64((void *)__afl_memlog_map->hits, MEMLOG_MAP_W, HASH_CONST);
 
   __afl_memlog_map->log[id][hits].__hook_op.src = ptr;
   __afl_memlog_map->log[id][hits].__hook_op.size = size;
@@ -523,10 +550,16 @@ void __memlog_va_arg_hook1(u32 id, void* ptr, u32 src_type, u32 rst_type,
     __afl_memlog_map->headers[id].src_shape = src_type;
     __afl_memlog_map->headers[id].rst_shape = rst_type;
 
+    // used for hash calculating
+    __afl_memlog_map->hits[id] = 1;
+
   }
   else {
     
     hits = __afl_memlog_map->headers[id].hits++;
+
+    // used for hash calculating
+    __afl_memlog_map->hits[id]++;
 
   }
   
@@ -534,7 +567,7 @@ void __memlog_va_arg_hook1(u32 id, void* ptr, u32 src_type, u32 rst_type,
 
   // calculate current memlog ma headers hashs
   // can be used to distinguish different path
-  __afl_memlog_map->cksum[id][hits] = hash64((void *)__afl_memlog_map->headers, MEMLOG_MAP_W * sizeof(struct memlog_header), HASH_CONST);
+  __afl_memlog_map->cksum[id][hits] = hash64((void *)__afl_memlog_map->hits, MEMLOG_MAP_W, HASH_CONST);
 
   if (num_of_idx > MEMLOG_MAXiMUM_IDX_NUM)
     logged = MEMLOG_MAXiMUM_IDX_NUM;

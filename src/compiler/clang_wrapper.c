@@ -64,15 +64,7 @@ static void memlog_pass() {
 
   cc_params[cc_par_cnt++] = "-mllvm";
   cc_params[cc_par_cnt++] = "-memlog-hook-inst=1";
-
-  cc_params[cc_par_cnt++] = "-mllvm";
-  cc_params[cc_par_cnt++] =  
-        alloc_printf("-memlog-dfsan-abilist=%s/lib/share/dfsan_abilist.txt", obj_path);
-
-  cc_params[cc_par_cnt++] = "-mllvm";
-  cc_params[cc_par_cnt++] =  
-        alloc_printf("-memlog-dfsan-abilist=%s/lib/share/target_abilist.txt", obj_path);
-        
+       
   cc_params[cc_par_cnt++] = "-mllvm";
   cc_params[cc_par_cnt++] = 
         alloc_printf("-memlog-hook-abilist=%s/lib/share/hook_abilist.txt", obj_path);
@@ -328,16 +320,16 @@ static void edit_params(u32 argc, char** argv) {
   if (getenv("DFSAN_MODE")) {
     
     dfsan_pass();
-  
+    dfsan_runtime();
+
   }
   else {
     
     memlog_pass(); 
-    
+    memlog_runtime();
+  
   }
 
-  memlog_runtime();
-  dfsan_runtime();
   afl_runtime();
   
   /*if (getenv("SYNC_HOOK_ID")) {
