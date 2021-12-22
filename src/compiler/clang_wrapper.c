@@ -317,7 +317,7 @@ static void edit_params(u32 argc, char** argv) {
     cc_params[cc_par_cnt++] = "-funroll-loops";
   }
   
-  if (getenv("DFSAN_MODE")) {
+  if (getenv("DTAINT_MODE")) {
     
     dfsan_pass();
     dfsan_runtime();
