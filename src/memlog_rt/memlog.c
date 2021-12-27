@@ -17,7 +17,7 @@ u64 hash64(u8 *key, u32 len, u64 seed) {
 
 typedef unsigned __int128 uint128_t;
 
-extern struct memlog_map *__afl_memlog_map;
+extern struct mem_map *__afl_mem_map;
 /**
  * Call hook.
  * __memlog_hook1 (unsigned id, void* ptr, unsigned src_type, unsigned rst_type);
@@ -46,27 +46,27 @@ extern struct memlog_map *__afl_memlog_map;
 void __memlog_debug_output() {
   
   struct hook_va_arg_operand *__hook_va_arg;
-  for (int i = 0; i < MEMLOG_MAP_W; i++) {
+  for (int i = 0; i < MEM_MAP_W; i++) {
     
-    if (!__afl_memlog_map->headers[i].hits) continue;
+    if (!__afl_mem_map->headers[i].hits) continue;
   
     fprintf(stderr, "header: id: %u hits: %u type: %u\n", 
       i, 
-      __afl_memlog_map->headers[i].hits,
-      __afl_memlog_map->headers[i].type);
-    /*switch (__afl_memlog_map->headers[i].type) {
+      __afl_mem_map->headers[i].hits,
+      __afl_mem_map->headers[i].type);
+    /*switch (__afl_mem_map->headers[i].type) {
       case HT_VARARG_HOOK1:
           
         fprintf(stderr, "header: id: %u hits: %u type: %u\n", 
           i, 
-          __afl_memlog_map->headers[i].hits,
-          __afl_memlog_map->headers[i].type);
+          __afl_mem_map->headers[i].hits,
+          __afl_mem_map->headers[i].type);
         fprintf(stderr, "hook va arg log: num: %p ptr: %p\n",
-          __afl_memlog_map->log[i][0].__hook_va_arg.num,
-          __afl_memlog_map->log[i][0].__hook_va_arg.ptr);
+          __afl_mem_map->log[i][0].__hook_va_arg.num,
+          __afl_mem_map->log[i][0].__hook_va_arg.ptr);
 
-        __hook_va_arg = &__afl_memlog_map->log[i][0].__hook_va_arg;
-        for (int j = 0; j < __afl_memlog_map->log[i][0].__hook_va_arg.num; j++) {
+        __hook_va_arg = &__afl_mem_map->log[i][0].__hook_va_arg;
+        for (int j = 0; j < __afl_mem_map->log[i][0].__hook_va_arg.num; j++) {
           fprintf(stderr, "%u ", __hook_va_arg->idx[j]);
         }fprintf(stderr, "\n");
         break;
@@ -77,8 +77,8 @@ void __memlog_debug_output() {
       case HT_HOOK7: {
         fprintf(stderr, "header: id: %u hits: %u type: %u\n", 
           i, 
-          __afl_memlog_map->headers[i].hits,
-          __afl_memlog_map->headers[i].type);
+          __afl_mem_map->headers[i].hits,
+          __afl_mem_map->headers[i].type);
         break;
       }
       default:
@@ -94,9 +94,9 @@ void __memlog_debug_init() {
       
   fprintf(stderr, "__memlog_debug_init\n");
 
-  if(!__afl_memlog_map) {
-      __afl_memlog_map = (struct memlog_map *)malloc(sizeof(struct memlog_map));
-    memset(__afl_memlog_map, 0, sizeof(struct memlog_map));
+  if(!__afl_mem_map) {
+      __afl_mem_map = (struct mem_map *)malloc(sizeof(struct mem_map));
+    memset(__afl_mem_map, 0, sizeof(struct mem_map));
   }
 
 }
@@ -105,12 +105,12 @@ __attribute__((destructor))
 void __memlog_debug_fini() {
 
   fprintf(stderr, "__memlog_debug_fini\n");
-  if (__afl_memlog_map) 
+  if (__afl_mem_map) 
     __memlog_debug_output();
   
-  if(__afl_memlog_map && !getenv(MEMLOG_SHM_ENV_VAR)) {
-    free(__afl_memlog_map);
-    __afl_memlog_map = NULL;
+  if(__afl_mem_map && !getenv(MEMLOG_SHM_ENV_VAR)) {
+    free(__afl_mem_map);
+    __afl_mem_map = NULL;
   }
 
 }
@@ -121,19 +121,19 @@ void __memlog_hook_debug(u32 id) {
   
   fprintf(stderr, "__memlog_hook_debug id: %u\n", id);
 
-  if (unlikely(!__afl_memlog_map) || id >= MEMLOG_MAP_W) return;
+  if (unlikely(!__afl_mem_map) || id >= MEM_MAP_W) return;
 
   unsigned hits;
-  if (!__afl_memlog_map->headers[id].type) {
+  if (!__afl_mem_map->headers[id].type) {
     
     hits = 0;
-    __afl_memlog_map->headers[id].hits = 1;
-    __afl_memlog_map->headers[id].type = HT_VARARG_HOOK1;
+    __afl_mem_map->headers[id].hits = 1;
+    __afl_mem_map->headers[id].type = HT_VARARG_HOOK1;
     
   }
   else {
 
-    hits = __afl_memlog_map->headers[id].hits++;
+    hits = __afl_mem_map->headers[id].hits++;
   
   }
 }
@@ -159,45 +159,45 @@ void __memlog_hook1(u32 id, void* ptr, u32 src_type, u32 rst_type) {
   }*/
   #endif
   
-  if (unlikely(!__afl_memlog_map) || id >= MEMLOG_MAP_W) return;
+  if (unlikely(!__afl_mem_map) || id >= MEM_MAP_W) return;
 
   unsigned hits;
-  if (!__afl_memlog_map->headers[id].type) {
+  if (!__afl_mem_map->headers[id].type) {
     
     hits = 0;
-    __afl_memlog_map->headers[id].hits = 1;
-    __afl_memlog_map->headers[id].type = HT_HOOK1;
+    __afl_mem_map->headers[id].hits = 1;
+    __afl_mem_map->headers[id].type = HT_HOOK1;
     
-    __afl_memlog_map->headers[id].src_shape = src_type;
-    __afl_memlog_map->headers[id].rst_shape = rst_type;
+    __afl_mem_map->headers[id].src_shape = src_type;
+    __afl_mem_map->headers[id].rst_shape = rst_type;
     
   }
   else {
 
-    hits = __afl_memlog_map->headers[id].hits++;
+    hits = __afl_mem_map->headers[id].hits++;
   
   }
 
-  hits &= MEMLOG_MAP_H - 1;
+  hits &= MEM_MAP_H - 1;
   if (src_type < sizeof(int64_t)) {
 
-    __afl_memlog_map->log[id][hits].__hook_op.value = *((unsigned *)ptr);
+    __afl_mem_map->log[id][hits].__hook_op.value = *((unsigned *)ptr);
   
   }
   else if (src_type < sizeof(uint128_t)){
 
-    __afl_memlog_map->log[id][hits].__hook_op.value = *((uint64_t *)ptr);
+    __afl_mem_map->log[id][hits].__hook_op.value = *((uint64_t *)ptr);
 
   }
   else {
 
     uint128_t val = *((uint128_t *)ptr);
-    __afl_memlog_map->log[id][hits].__hook_op.value = (uint64_t )val;
-    __afl_memlog_map->log[id][hits].__hook_op.value_128 = (uint64_t)(val >> 64);
+    __afl_mem_map->log[id][hits].__hook_op.value = (uint64_t )val;
+    __afl_mem_map->log[id][hits].__hook_op.value_128 = (uint64_t)(val >> 64);
 
   }
 
-  __afl_memlog_map->log[id][hits].__hook_op.src = ptr;
+  __afl_mem_map->log[id][hits].__hook_op.src = ptr;
 
 }
 
@@ -215,28 +215,28 @@ void __memlog_hook2(u32 id, size_t value, u32 src_type, void* ptr,
   //fprintf(stderr, "__memlog_hook2 id: %u\n", id);
   #endif
   
-  if (unlikely(!__afl_memlog_map) || id >= MEMLOG_MAP_W) return;
+  if (unlikely(!__afl_mem_map) || id >= MEM_MAP_W) return;
 
   unsigned hits;
-  if (!__afl_memlog_map->headers[id].type) {
+  if (!__afl_mem_map->headers[id].type) {
     
     hits = 0;
-    __afl_memlog_map->headers[id].hits = 1;
-    __afl_memlog_map->headers[id].type = HT_HOOK2;
+    __afl_mem_map->headers[id].hits = 1;
+    __afl_mem_map->headers[id].type = HT_HOOK2;
   
-    __afl_memlog_map->headers[id].src_shape = src_type;
-    __afl_memlog_map->headers[id].rst_shape = rst_type;
+    __afl_mem_map->headers[id].src_shape = src_type;
+    __afl_mem_map->headers[id].rst_shape = rst_type;
 
   }
   else {
     
-    hits = __afl_memlog_map->headers[id].hits++;
+    hits = __afl_mem_map->headers[id].hits++;
 
   }
   
-  hits &= MEMLOG_MAP_H - 1;
-  __afl_memlog_map->log[id][hits].__hook_op.dst = ptr;
-  __afl_memlog_map->log[id][hits].__hook_op.value = value;
+  hits &= MEM_MAP_H - 1;
+  __afl_mem_map->log[id][hits].__hook_op.dst = ptr;
+  __afl_mem_map->log[id][hits].__hook_op.value = value;
 
 }
 
@@ -252,29 +252,29 @@ void __memlog_hook2_int128(u32 id, uint128_t value, u32 src_type,
   (int64_t)value, src_type, ptr, rst_type);*/
   #endif
   
-  if (unlikely(!__afl_memlog_map) || id >= MEMLOG_MAP_W) return;
+  if (unlikely(!__afl_mem_map) || id >= MEM_MAP_W) return;
 
   unsigned hits;
-  if (!__afl_memlog_map->headers[id].type) {
+  if (!__afl_mem_map->headers[id].type) {
     
     hits = 0;
-    __afl_memlog_map->headers[id].hits = 1;
-    __afl_memlog_map->headers[id].type = HT_HOOK2_INT128;
+    __afl_mem_map->headers[id].hits = 1;
+    __afl_mem_map->headers[id].type = HT_HOOK2_INT128;
   
-    __afl_memlog_map->headers[id].src_shape = src_type;
-    __afl_memlog_map->headers[id].rst_shape = rst_type;
+    __afl_mem_map->headers[id].src_shape = src_type;
+    __afl_mem_map->headers[id].rst_shape = rst_type;
 
   }
   else {
     
-    hits = __afl_memlog_map->headers[id].hits++;
+    hits = __afl_mem_map->headers[id].hits++;
 
   }
   
-  hits &= MEMLOG_MAP_H - 1;
-  __afl_memlog_map->log[id][hits].__hook_op.dst = ptr;
-  __afl_memlog_map->log[id][hits].__hook_op.value = (uint64_t)value;
-  __afl_memlog_map->log[id][hits].__hook_op.value_128 = (uint64_t)(value >> 64);
+  hits &= MEM_MAP_H - 1;
+  __afl_mem_map->log[id][hits].__hook_op.dst = ptr;
+  __afl_mem_map->log[id][hits].__hook_op.value = (uint64_t)value;
+  __afl_mem_map->log[id][hits].__hook_op.value_128 = (uint64_t)(value >> 64);
 
 }
 
@@ -289,40 +289,40 @@ void __memlog_hook3(u32 id, void* ptr, int c, size_t size) {
   //  c, size);
   #endif
   
-  if (unlikely(!__afl_memlog_map) || id >= MEMLOG_MAP_W) return;
+  if (unlikely(!__afl_mem_map) || id >= MEM_MAP_W) return;
 
   unsigned hits;
-  if (!__afl_memlog_map->headers[id].type) {
+  if (!__afl_mem_map->headers[id].type) {
     
     hits = 0;
-    __afl_memlog_map->headers[id].hits = 1;
-    __afl_memlog_map->headers[id].type = HT_HOOK3;
+    __afl_mem_map->headers[id].hits = 1;
+    __afl_mem_map->headers[id].type = HT_HOOK3;
   
-    __afl_memlog_map->headers[id].src_shape = 1;
-    __afl_memlog_map->headers[id].rst_shape = 1;
+    __afl_mem_map->headers[id].src_shape = 1;
+    __afl_mem_map->headers[id].rst_shape = 1;
 
     // used for hash calculating
-    __afl_memlog_map->hits[id] = 1;
+    __afl_mem_map->hits[id] = 1;
 
   }
   else {
     
-    hits = __afl_memlog_map->headers[id].hits++;
+    hits = __afl_mem_map->headers[id].hits++;
 
     // used for hash calculating
-    __afl_memlog_map->hits[id]++;
+    __afl_mem_map->hits[id]++;
 
   }
   
-  hits &= MEMLOG_MAP_H - 1;
+  hits &= MEM_MAP_H - 1;
 
   // calculate current memlog ma headers hashs
   // can be used to distinguish different path
-  __afl_memlog_map->cksum[id][hits] = hash64((void *)__afl_memlog_map->hits, MEMLOG_MAP_W, HASH_CONST);
+  __afl_mem_map->cksum[id][hits] = hash64((void *)__afl_mem_map->hits, MEM_MAP_W, HASH_CONST);
 
-  __afl_memlog_map->log[id][hits].__hook_op.dst = ptr;
-  __afl_memlog_map->log[id][hits].__hook_op.value = c;
-  __afl_memlog_map->log[id][hits].__hook_op.size = size;
+  __afl_mem_map->log[id][hits].__hook_op.dst = ptr;
+  __afl_mem_map->log[id][hits].__hook_op.value = c;
+  __afl_mem_map->log[id][hits].__hook_op.size = size;
 
 }
 
@@ -337,40 +337,40 @@ void __memlog_hook4(u32 id, void* dst, void* src, size_t size) {
   //  dst, src, size);
   #endif
   
-  if (unlikely(!__afl_memlog_map) || id >= MEMLOG_MAP_W) return;
+  if (unlikely(!__afl_mem_map) || id >= MEM_MAP_W) return;
 
   unsigned hits;
-  if (!__afl_memlog_map->headers[id].type) {
+  if (!__afl_mem_map->headers[id].type) {
     
     hits = 0;
-    __afl_memlog_map->headers[id].hits = 1;
-    __afl_memlog_map->headers[id].type = HT_HOOK4;
+    __afl_mem_map->headers[id].hits = 1;
+    __afl_mem_map->headers[id].type = HT_HOOK4;
   
-    __afl_memlog_map->headers[id].src_shape = 1;
-    __afl_memlog_map->headers[id].rst_shape = 1;
+    __afl_mem_map->headers[id].src_shape = 1;
+    __afl_mem_map->headers[id].rst_shape = 1;
 
     // used for hash calculating
-    __afl_memlog_map->hits[id] = 1;
+    __afl_mem_map->hits[id] = 1;
  
   }
   else {
     
-    hits = __afl_memlog_map->headers[id].hits++;
+    hits = __afl_mem_map->headers[id].hits++;
 
     // used for hash calculating
-    __afl_memlog_map->hits[id]++;
+    __afl_mem_map->hits[id]++;
     
   }
 
-  hits &= MEMLOG_MAP_H - 1;
+  hits &= MEM_MAP_H - 1;
 
   // calculate current memlog ma headers hashs
   // can be used to distinguish different path
-  __afl_memlog_map->cksum[id][hits] = hash64((void *)__afl_memlog_map->hits, MEMLOG_MAP_W, HASH_CONST);
+  __afl_mem_map->cksum[id][hits] = hash64((void *)__afl_mem_map->hits, MEM_MAP_W, HASH_CONST);
 
-  __afl_memlog_map->log[id][hits].__hook_op.dst = dst;
-  __afl_memlog_map->log[id][hits].__hook_op.src = src;
-  __afl_memlog_map->log[id][hits].__hook_op.size = size;
+  __afl_mem_map->log[id][hits].__hook_op.dst = dst;
+  __afl_mem_map->log[id][hits].__hook_op.src = src;
+  __afl_mem_map->log[id][hits].__hook_op.size = size;
 
 }
 
@@ -384,38 +384,38 @@ void __memlog_hook5(u32 id, size_t size) {
  //fprintf(stderr, "__memlog_hook5: id: %u size: %llu\n", id, size);
   #endif
 
-  if (unlikely(!__afl_memlog_map) || id >= MEMLOG_MAP_W) return;
+  if (unlikely(!__afl_mem_map) || id >= MEM_MAP_W) return;
 
   unsigned hits;
-  if (!__afl_memlog_map->headers[id].type) {
+  if (!__afl_mem_map->headers[id].type) {
     
     hits = 0;
-    __afl_memlog_map->headers[id].hits = 1;
-    __afl_memlog_map->headers[id].type = HT_HOOK5;
+    __afl_mem_map->headers[id].hits = 1;
+    __afl_mem_map->headers[id].type = HT_HOOK5;
   
-    __afl_memlog_map->headers[id].src_shape = 1;
-    __afl_memlog_map->headers[id].rst_shape = 1;
+    __afl_mem_map->headers[id].src_shape = 1;
+    __afl_mem_map->headers[id].rst_shape = 1;
 
     // used for hash calculating
-    __afl_memlog_map->hits[id] = 1;
+    __afl_mem_map->hits[id] = 1;
 
   }
   else {
     
-    hits = __afl_memlog_map->headers[id].hits++;
+    hits = __afl_mem_map->headers[id].hits++;
 
     // used for hash calculating
-    __afl_memlog_map->hits[id]++;
+    __afl_mem_map->hits[id]++;
 
   }
 
-  hits &= MEMLOG_MAP_H - 1;
+  hits &= MEM_MAP_H - 1;
 
   // calculate current memlog ma headers hashs
   // can be used to distinguish different path
-  __afl_memlog_map->cksum[id][hits] = hash64((void *)__afl_memlog_map->hits, MEMLOG_MAP_W, HASH_CONST);
+  __afl_mem_map->cksum[id][hits] = hash64((void *)__afl_mem_map->hits, MEM_MAP_W, HASH_CONST);
 
-  __afl_memlog_map->log[id][hits].__hook_op.size = size;
+  __afl_mem_map->log[id][hits].__hook_op.size = size;
   
 }
 
@@ -429,33 +429,33 @@ void __memlog_hook6(u32 id, void* ptr) {
   //fprintf(stderr, "__memlog_hook6: id: %u ptr: %p\n", id, ptr);
   #endif
 
-  if (unlikely(!__afl_memlog_map) || id >= MEMLOG_MAP_W) return;
+  if (unlikely(!__afl_mem_map) || id >= MEM_MAP_W) return;
 
   unsigned hits;
-  if(!__afl_memlog_map->headers[id].type) {
+  if(!__afl_mem_map->headers[id].type) {
   
     hits = 0;
-    __afl_memlog_map->headers[id].hits = 1;
-    __afl_memlog_map->headers[id].type = HT_HOOK6;
+    __afl_mem_map->headers[id].hits = 1;
+    __afl_mem_map->headers[id].type = HT_HOOK6;
 
     // used for hash calculating
-    __afl_memlog_map->hits[id] = 1;
+    __afl_mem_map->hits[id] = 1;
   }
   else {
     
-    hits = __afl_memlog_map->headers[id].hits++;
+    hits = __afl_mem_map->headers[id].hits++;
 
     // used for hash calculating
-    __afl_memlog_map->hits[id]++;
+    __afl_mem_map->hits[id]++;
   }
 
-  hits &= MEMLOG_MAP_H - 1;
+  hits &= MEM_MAP_H - 1;
 
   // calculate current memlog ma headers hashs
   // can be used to distinguish different path
-  __afl_memlog_map->cksum[id][hits] = hash64((void *)__afl_memlog_map->hits, MEMLOG_MAP_W, HASH_CONST);
+  __afl_mem_map->cksum[id][hits] = hash64((void *)__afl_mem_map->hits, MEM_MAP_W, HASH_CONST);
 
-  __afl_memlog_map->log[id][hits].__hook_op.src = ptr;
+  __afl_mem_map->log[id][hits].__hook_op.src = ptr;
 
 }
 
@@ -469,38 +469,38 @@ void __memlog_hook7(u32 id, void* ptr, size_t size) {
   //fprintf(stderr, "__memlog_hook7: id: %u ptr: %p size: %llu\n", id, ptr, size);
   #endif
 
-  if (unlikely(!__afl_memlog_map) || id >= MEMLOG_MAP_W) return;
+  if (unlikely(!__afl_mem_map) || id >= MEM_MAP_W) return;
 
   unsigned hits;
-  if (!__afl_memlog_map->headers[id].type) {
+  if (!__afl_mem_map->headers[id].type) {
   
     hits = 0;
-    __afl_memlog_map->headers[id].hits = 1;
-    __afl_memlog_map->headers[id].type = HT_HOOK7;
+    __afl_mem_map->headers[id].hits = 1;
+    __afl_mem_map->headers[id].type = HT_HOOK7;
   
-    __afl_memlog_map->headers[id].src_shape = 1;
-    __afl_memlog_map->headers[id].rst_shape = 1;
+    __afl_mem_map->headers[id].src_shape = 1;
+    __afl_mem_map->headers[id].rst_shape = 1;
 
     // used for hash calculating
-    __afl_memlog_map->hits[id] = 1;
+    __afl_mem_map->hits[id] = 1;
   }
   else {
     
-    hits = __afl_memlog_map->headers[id].hits++;
+    hits = __afl_mem_map->headers[id].hits++;
 
     // used for hash calculating
-    __afl_memlog_map->hits[id]++;
+    __afl_mem_map->hits[id]++;
 
   }
 
-  hits &= MEMLOG_MAP_H - 1;
+  hits &= MEM_MAP_H - 1;
 
   // calculate current memlog ma headers hashs
   // can be used to distinguish different path
-  __afl_memlog_map->cksum[id][hits] = hash64((void *)__afl_memlog_map->hits, MEMLOG_MAP_W, HASH_CONST);
+  __afl_mem_map->cksum[id][hits] = hash64((void *)__afl_mem_map->hits, MEM_MAP_W, HASH_CONST);
 
-  __afl_memlog_map->log[id][hits].__hook_op.src = ptr;
-  __afl_memlog_map->log[id][hits].__hook_op.size = size;
+  __afl_mem_map->log[id][hits].__hook_op.src = ptr;
+  __afl_mem_map->log[id][hits].__hook_op.size = size;
 
 }
 
@@ -538,43 +538,43 @@ void __memlog_va_arg_hook1(u32 id, void* ptr, u32 src_type, u32 rst_type,
  
   #endif
 
-  if (unlikely(!__afl_memlog_map) || id >= MEMLOG_MAP_W) return;
+  if (unlikely(!__afl_mem_map) || id >= MEM_MAP_W) return;
 
   unsigned hits;
-  if (!__afl_memlog_map->headers[id].type) {
+  if (!__afl_mem_map->headers[id].type) {
     
     hits = 0;
-    __afl_memlog_map->headers[id].hits = 1;
-    __afl_memlog_map->headers[id].type = HT_VARARG_HOOK1;
+    __afl_mem_map->headers[id].hits = 1;
+    __afl_mem_map->headers[id].type = HT_VARARG_HOOK1;
 
-    __afl_memlog_map->headers[id].src_shape = src_type;
-    __afl_memlog_map->headers[id].rst_shape = rst_type;
+    __afl_mem_map->headers[id].src_shape = src_type;
+    __afl_mem_map->headers[id].rst_shape = rst_type;
 
     // used for hash calculating
-    __afl_memlog_map->hits[id] = 1;
+    __afl_mem_map->hits[id] = 1;
 
   }
   else {
     
-    hits = __afl_memlog_map->headers[id].hits++;
+    hits = __afl_mem_map->headers[id].hits++;
 
     // used for hash calculating
-    __afl_memlog_map->hits[id]++;
+    __afl_mem_map->hits[id]++;
 
   }
   
-  hits &= MEMLOG_MAP_H - 1;
+  hits &= MEM_MAP_H - 1;
 
   // calculate current memlog ma headers hashs
   // can be used to distinguish different path
-  __afl_memlog_map->cksum[id][hits] = hash64((void *)__afl_memlog_map->hits, MEMLOG_MAP_W, HASH_CONST);
+  __afl_mem_map->cksum[id][hits] = hash64((void *)__afl_mem_map->hits, MEM_MAP_W, HASH_CONST);
 
-  if (num_of_idx > MEMLOG_MAXiMUM_IDX_NUM)
-    logged = MEMLOG_MAXiMUM_IDX_NUM;
+  if (num_of_idx > MEM_MAP_MAX_IDX)
+    logged = MEM_MAP_MAX_IDX;
   else
     logged = num_of_idx;
 
-  __hook_va_arg = &__afl_memlog_map->log[id][hits].__hook_va_arg;
+  __hook_va_arg = &__afl_mem_map->log[id][hits].__hook_va_arg;
   __hook_va_arg->num = logged;
   __hook_va_arg->ptr = ptr;
   

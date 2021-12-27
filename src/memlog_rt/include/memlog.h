@@ -1,8 +1,8 @@
 #ifndef _MEMLOG_H_
 #define _MEMLOG_H_
-#define MEMLOG_MAP_W (1 << 16)
-#define MEMLOG_MAP_H 32
-#define MEMLOG_MAXiMUM_IDX_NUM 8
+#define MEM_MAP_W (1 << 16)
+#define MEM_MAP_H 32
+#define MEM_MAP_MAX_IDX 8
 
 enum HookType {
 
@@ -38,7 +38,7 @@ enum HookType {
 
 };
 
-struct memlog_header {
+struct mem_header {
   
   // instructions executed
   unsigned int hits;
@@ -68,7 +68,7 @@ struct hook_va_arg_operand {
   
   unsigned int num;
   void* ptr;
-  unsigned int idx[MEMLOG_MAXiMUM_IDX_NUM];
+  unsigned int idx[MEM_MAP_MAX_IDX];
 
 } __attribute__((packed));
 
@@ -86,18 +86,18 @@ union hook_operands {
 
 };
 
-struct memlog_map {
+struct mem_map {
   
   /* used for path hash calculation, for speed, just one byte */
-  unsigned char hits[MEMLOG_MAP_W];
-  struct memlog_header headers[MEMLOG_MAP_W];
-  union hook_operands log[MEMLOG_MAP_W][MEMLOG_MAP_H]; 
+  unsigned char hits[MEM_MAP_W];
+  struct mem_header headers[MEM_MAP_W];
+  union hook_operands log[MEM_MAP_W][MEM_MAP_H]; 
   /**
    * current memlog map hash
    * used to distinguish different path
    * 
    */
-  unsigned long long cksum[MEMLOG_MAP_W][MEMLOG_MAP_H];
+  unsigned long long cksum[MEM_MAP_W][MEM_MAP_H];
 
 };
 

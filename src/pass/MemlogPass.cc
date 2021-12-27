@@ -3,6 +3,7 @@
 #include "llvm/IR/Function.h"
 #include "llvm/IR/InstVisitor.h"
 #include "llvm/IR/IRBuilder.h"
+#include "llvm/IR/Metadata.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/LegacyPassManager.h"
 #include "llvm/Pass.h"
@@ -113,16 +114,17 @@ class MemlogPass: public ModulePass, public InstVisitor<MemlogPass> {
         // __memlog_hook7 (unsigned id, void* ptr, size_t size);
         // ex. realloc
         HT_HOOK7,
-        // __memlog_va_arg_hook1 (unsigned id, void* ptr, unsigned src_type, 
+        // __memlog_get_element_ptr_hook (unsigned id, void* ptr, unsigned src_type, 
         // unsigned rst_type, unsigned num_of_idx, ...);
-        // ex. get_element_ptr
-        HT_VARARG_HOOK1
+        HT_GEP_HOOK
         
     };
 
+    HookABIList __HookABIList; 
+
     const DataLayout *TaintDataLayout;
     
-    HookABIList __HookABIList; 
+    MDNode *SanitizeMDNode;
   
     Type *Int64PtrTy;
     Type *Int8Ty;
@@ -140,7 +142,7 @@ class MemlogPass: public ModulePass, public InstVisitor<MemlogPass> {
     FunctionType *MemlogHook5FuncTy;
     FunctionType *MemlogHook6FuncTy;
     FunctionType *MemlogHook7FuncTy;
-    FunctionType *MemlogVaArgHook1FuncTy;
+    FunctionType *MemlogGEPHookFuncTy;
 
     FunctionCallee MemlogHookDebugFunc;
     FunctionCallee MemlogHook1Func;
@@ -151,7 +153,7 @@ class MemlogPass: public ModulePass, public InstVisitor<MemlogPass> {
     FunctionCallee MemlogHook5Func;
     FunctionCallee MemlogHook6Func;
     FunctionCallee MemlogHook7Func;
-    FunctionCallee MemlogVaArgHook1Func;
+    FunctionCallee MemlogGEPHookFunc;
 
     static unsigned HookID;
     static unsigned OrigHookID;
@@ -229,6 +231,7 @@ char MemlogPass::ID = 0;
 bool MemlogPass::doInitialization(Module &M) {
 
     TaintDataLayout = &M.getDataLayout();
+    SanitizeMDNode = MDNode::get(M.getContext(), None);
     // get type
     Int64PtrTy = Type::getInt64PtrTy(M.getContext());
     Int8Ty = Type::getInt8Ty(M.getContext());
@@ -247,7 +250,7 @@ bool MemlogPass::doInitialization(Module &M) {
     MemlogHook5FuncTy = FunctionType::get(VoidTy, {Int32Ty, Int32Ty, SizeTy}, false);
     MemlogHook6FuncTy = FunctionType::get(VoidTy, {Int32Ty, SizeTy}, false);
     MemlogHook7FuncTy = FunctionType::get(VoidTy, {Int32Ty, Int64PtrTy}, false);
-    MemlogVaArgHook1FuncTy = FunctionType::get(VoidTy, {Int32Ty, Int64PtrTy, Int32Ty, Int32Ty, Int32Ty}, true);
+    MemlogGEPHookFuncTy = FunctionType::get(VoidTy, {Int32Ty, Int64PtrTy, Int32Ty, Int32Ty, Int32Ty}, true);
     
     return true;
 }
@@ -268,8 +271,8 @@ bool MemlogPass::runOnModule(Module &M) {
     MemlogHook5Func = M.getOrInsertFunction("__memlog_hook5", MemlogHook5FuncTy);
     MemlogHook6Func = M.getOrInsertFunction("__memlog_hook6", MemlogHook6FuncTy);
     MemlogHook7Func = M.getOrInsertFunction("__memlog_hook7", MemlogHook7FuncTy);
-    MemlogVaArgHook1Func = M.getOrInsertFunction("__memlog_va_arg_hook1", MemlogVaArgHook1FuncTy);
-   
+    MemlogGEPHookFunc = M.getOrInsertFunction("__memlog_get_element_ptr_hook", MemlogGEPHookFuncTy);
+    
     /**
      * Replace argc with global variable.
      */
@@ -301,7 +304,7 @@ bool MemlogPass::runOnModule(Module &M) {
                 &F != MemlogHook5Func.getCallee()->stripPointerCasts() &&
                 &F != MemlogHook6Func.getCallee()->stripPointerCasts() &&
                 &F != MemlogHook7Func.getCallee()->stripPointerCasts() &&
-                &F != MemlogVaArgHook1Func.getCallee()->stripPointerCasts()) {
+                &F != MemlogGEPHookFunc.getCallee()->stripPointerCasts()) {
             
             if (F.isDeclaration())
                 continue;
@@ -312,7 +315,7 @@ bool MemlogPass::runOnModule(Module &M) {
     }
 
     errs() << "\x1b[0;36mMemlog Instrumentation\x1b[0m start ID: \x1b[0;36m" << HookID << "\x1b[0m\n";
-    errs() << "[+] Instrumented \x1b[0;36m"<< HookID % MemlogMapW - OrigHookID << "\x1b[0m locations\n";
+    errs() << "[+] Instrumented \x1b[0;36m"<< HookID - OrigHookID << "\x1b[0m locations\n";
     std::fstream OutFile;
     OutFile.open(HookIDFileName, std::ios::out | std::ios::trunc);
     OutFile << HookID % MemlogMapW;
@@ -341,8 +344,8 @@ MemlogPass::HookType MemlogPass::getHookType(const Function *F) {
         return HT_HOOK6;
     else if(__HookABIList.isIn(*F, "hook7"))
         return HT_HOOK7;
-    else if(__HookABIList.isIn(*F, "vararghook1"))
-        return HT_VARARG_HOOK1;
+    else if(__HookABIList.isIn(*F, "gephook"))
+        return HT_GEP_HOOK;
     return HT_UNKNOWN;
 
 }
@@ -418,34 +421,41 @@ void MemlogPass::visitCallBase(CallBase &CB) {
         if (ClDebug)
           errs() << CB.getFunction()->getName() << " hook "<< F->getName() << " " << HookID << "\n"; 
         
+        Value *Arg;
         IRBuilder <> IRB(&CB);
         std::vector<Value *> ArgArray;
         ArgArray.push_back(ConstantInt::get(Int32Ty, HookID++));
         for (User::op_iterator it = CB.arg_begin(); it != CB.arg_end(); it++) {
-            ArgArray.push_back(*it);
+
+            Arg = *it;
+            if (Arg->getType()->isPointerTy())
+              Arg = IRB.CreatePtrToInt(Arg, Int64PtrTy);
+    
+            ArgArray.push_back(Arg);
+
         }
 
         switch(getHookType(F)) {
             case HT_HOOK1:
-                IRB.CreateCall(MemlogHook1Func, ArgArray);
+                IRB.CreateCall(MemlogHook1Func, ArgArray)->setMetadata(CB.getModule()->getMDKindID("nosanitize"), SanitizeMDNode);
                 break;
             case HT_HOOK2:
-                IRB.CreateCall(MemlogHook2Func, ArgArray);
+                IRB.CreateCall(MemlogHook2Func, ArgArray)->setMetadata(CB.getModule()->getMDKindID("nosanitize"), SanitizeMDNode);
                 break;
             case HT_HOOK3:
-                IRB.CreateCall(MemlogHook3Func, ArgArray);
+                IRB.CreateCall(MemlogHook3Func, ArgArray)->setMetadata(CB.getModule()->getMDKindID("nosanitize"), SanitizeMDNode);
                 break;
             case HT_HOOK4:
-                IRB.CreateCall(MemlogHook4Func, ArgArray);
+                IRB.CreateCall(MemlogHook4Func, ArgArray)->setMetadata(CB.getModule()->getMDKindID("nosanitize"), SanitizeMDNode);
                 break;
             case HT_HOOK5:
-                IRB.CreateCall(MemlogHook5Func, ArgArray);
+                IRB.CreateCall(MemlogHook5Func, ArgArray)->setMetadata(CB.getModule()->getMDKindID("nosanitize"), SanitizeMDNode);
                 break;
             case HT_HOOK6:
-                IRB.CreateCall(MemlogHook6Func, ArgArray);
+                IRB.CreateCall(MemlogHook6Func, ArgArray)->setMetadata(CB.getModule()->getMDKindID("nosanitize"), SanitizeMDNode);
                 break;
             case HT_HOOK7:
-                IRB.CreateCall(MemlogHook7Func, ArgArray);
+                IRB.CreateCall(MemlogHook7Func, ArgArray)->setMetadata(CB.getModule()->getMDKindID("nosanitize"), SanitizeMDNode);
                 break;
             default:
                 break;
@@ -479,23 +489,33 @@ void MemlogPass::visitGetElementPtrInst(GetElementPtrInst &I) {
         size_t SourceType = TaintDataLayout->getTypeStoreSize(I.getSourceElementType());
         size_t ResultType = TaintDataLayout->getTypeStoreSize(I.getResultElementType());
         
+        IRBuilder <> IRB(&I);
+        Value *Arg;
+        unsigned int count = 0;
         std::vector<Value *> ArgArray;  
         ArgArray.push_back(ConstantInt::get(Int32Ty, HookID++));
         ArgArray.push_back(I.getPointerOperand());
         ArgArray.push_back(ConstantInt::get(Int32Ty, SourceType));
         ArgArray.push_back(ConstantInt::get(Int32Ty, ResultType));
-        // need to pass type and idx both
-        ArgArray.push_back(ConstantInt::get(Int32Ty, I.getNumIndices()));
-        //ArgArray.push_back(ConstantInt::get(Int32Ty, 9527));
-        // get idx and type
+        // set num of idx to 0
+        ArgArray.push_back(ConstantInt::get(Int32Ty, count));
+        // get non-constant idx and calculate how many such idx we have
         for (User::op_iterator it = I.idx_begin(); it != I.idx_end(); it++) {
-            ArgArray.push_back(ConstantInt::get(Int32Ty, 
-                TaintDataLayout->getTypeStoreSize((*it)->getType())));
-            ArgArray.push_back(*it); 
-        }
+            Arg = *it;
+            if (!isa<ConstantInt>(Arg) && Arg->getType()->isIntegerTy()) {
 
-        IRBuilder <> IRB(&I);
-        IRB.CreateCall(MemlogVaArgHook1Func, ArgArray);
+                if (Arg->getType() != SizeTy)
+                    Arg = IRB.CreateZExt(Arg, SizeTy);   
+
+                ArgArray.push_back(Arg); 
+                count++;
+
+            }
+        
+        }
+        
+        ArgArray[4] = ConstantInt::get(Int32Ty, count);
+        IRB.CreateCall(MemlogGEPHookFunc, ArgArray)->setMetadata(I.getModule()->getMDKindID("nosanitize"), SanitizeMDNode);
 
     }
 
@@ -689,10 +709,11 @@ void MemlogPass::visitAtomicRMWInst(AtomicRMWInst &I) {
 
 static RegisterPass<MemlogPass> X("Memloghook", "MemlogPass", false, false);
 
-static void registerMemlog(const PassManagerBuilder &,
+static void registerMemlogPass(const PassManagerBuilder &,
                                  legacy::PassManagerBase &PM) {
 
   PM.add(new MemlogPass());
+
 }
 
 /**
@@ -707,9 +728,15 @@ static void registerMemlog(const PassManagerBuilder &,
  * Bind to optimization level 0, is it a good choise ?
  */
 static RegisterStandardPasses
-    RegisterMemlog(PassManagerBuilder::EP_OptimizerLast,
-                   registerMemlog);
+    RegisterMemlogPass(PassManagerBuilder::EP_OptimizerLast,
+                   registerMemlogPass);
 
 static RegisterStandardPasses
-    RegisterMemlog0(PassManagerBuilder::EP_EnabledOnOptLevel0,
-                   registerMemlog);
+    RegisterMemlogPass0(PassManagerBuilder::EP_EnabledOnOptLevel0,
+                   registerMemlogPass);
+
+#if LLVM_VERSION_MAJOR >= 11
+static RegisterStandardPasses RegisterMemlogPassLTO(
+    PassManagerBuilder::EP_FullLinkTimeOptimizationLast,
+    registerMemlogPass);
+#endif

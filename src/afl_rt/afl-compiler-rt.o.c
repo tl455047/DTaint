@@ -119,8 +119,8 @@ int __afl_sharedmem_fuzzing __attribute__((weak));
 struct dtaint_map *__afl_dtaint_map;
 struct dtaint_map *__afl_dtaint_map_backup;
 
-struct memlog_map *__afl_memlog_map;
-struct memlog_map *__afl_memlog_map_backup;
+struct mem_map *__afl_mem_map;
+struct mem_map *__afl_mem_map_backup;
 
 /* Child pid? */
 
@@ -597,7 +597,7 @@ static void __afl_map_shm(void) {
 #ifdef USEMMAP
     const char *    shm_file_path = id_str;
     int             shm_fd = -1;
-    struct memlog_map *shm_base = NULL;
+    struct mem_map *shm_base = NULL;
 
     /* create the shared memory segment as if it was a file */
     shm_fd = shm_open(shm_file_path, O_RDWR, DEFAULT_PERMISSION);
@@ -610,7 +610,7 @@ static void __afl_map_shm(void) {
     }
 
     /* map the shared memory segment to the address space of the process */
-    shm_base = mmap(0, sizeof(struct memlog_map), PROT_READ | PROT_WRITE,
+    shm_base = mmap(0, sizeof(struct mem_map), PROT_READ | PROT_WRITE,
                     MAP_SHARED, shm_fd, 0);
     if (shm_base == MAP_FAILED) {
 
@@ -623,16 +623,16 @@ static void __afl_map_shm(void) {
 
     }
 
-    __afl_memlog_map = shm_base;
+    __afl_mem_map = shm_base;
 #else
     u32 shm_id = atoi(id_str);
 
-    __afl_memlog_map = (struct memlog_map *)shmat(shm_id, NULL, 0);
+    __afl_mem_map = (struct mem_map *)shmat(shm_id, NULL, 0);
 #endif
 
-    __afl_memlog_map_backup = __afl_memlog_map;
+    __afl_mem_map_backup = __afl_mem_map;
 
-    if (!__afl_memlog_map || __afl_memlog_map == (void *)-1) {
+    if (!__afl_mem_map || __afl_mem_map == (void *)-1) {
 
       perror("shmat for memlog");
       send_forkserver_error(FS_ERROR_SHM_OPEN);
@@ -701,16 +701,16 @@ static void __afl_unmap_shm(void) {
 
 #ifdef USEMMAP
 
-    munmap((void *)__afl_memlog_map, __afl_map_size);
+    munmap((void *)__afl_mem_map, __afl_map_size);
 
 #else
 
-    shmdt((void *)__afl_memlog_map);
+    shmdt((void *)__afl_mem_map);
 
 #endif
 
-    __afl_memlog_map = NULL;
-    __afl_memlog_map_backup = NULL;
+    __afl_mem_map = NULL;
+    __afl_mem_map_backup = NULL;
 
   }
 
@@ -995,7 +995,7 @@ static void __afl_start_forkserver(void) {
   signal(SIGTERM, at_exit);
 
 #ifdef __linux__
-  if (/*!is_persistent &&*/ !__afl_dtaint_map && !__afl_memlog_map && 
+  if (/*!is_persistent &&*/ !__afl_dtaint_map && !__afl_mem_map && 
     !getenv("AFL_NO_SNAPSHOT") &&
       afl_snapshot_init() >= 0) {
 
@@ -1641,7 +1641,7 @@ void __afl_coverage_off() {
 
     __afl_area_ptr = __afl_area_ptr_dummy;
     __afl_dtaint_map = NULL;
-    __afl_memlog_map = NULL;
+    __afl_mem_map = NULL;
   
   }
 
@@ -1654,7 +1654,7 @@ void __afl_coverage_on() {
 
     __afl_area_ptr = __afl_area_ptr_backup;
     if (__afl_dtaint_map_backup) { __afl_dtaint_map = __afl_dtaint_map_backup; }
-    if (__afl_memlog_map_backup) { __afl_memlog_map = __afl_memlog_map_backup; }
+    if (__afl_mem_map_backup) { __afl_mem_map = __afl_mem_map_backup; }
 
   }
 
@@ -1667,7 +1667,7 @@ void __afl_coverage_discard() {
   __afl_area_ptr_backup[0] = 1;
 
   if (__afl_dtaint_map) { memset(__afl_dtaint_map, 0, sizeof(struct dtaint_map)); }
-  if (__afl_memlog_map) { memset(__afl_memlog_map, 0, sizeof(struct memlog_map)); }
+  if (__afl_mem_map) { memset(__afl_mem_map, 0, sizeof(struct mem_map)); }
 
 }
 
