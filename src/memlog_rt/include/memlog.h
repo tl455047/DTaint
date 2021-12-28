@@ -34,7 +34,7 @@ enum HookType {
     // __memlog_va_arg_hook1 (unsigned id, void* ptr, unsigned src_type, 
     // unsigned rst_type, unsigned num_of_idx, ...);
     // ex. get_element_ptr
-    HT_VARARG_HOOK1 = 9
+    HT_GEP_HOOK = 9
 
 };
 

@@ -493,7 +493,7 @@ void MemlogPass::visitGetElementPtrInst(GetElementPtrInst &I) {
         Value *Arg;
         unsigned int count = 0;
         std::vector<Value *> ArgArray;  
-        ArgArray.push_back(ConstantInt::get(Int32Ty, HookID++));
+        ArgArray.push_back(ConstantInt::get(Int32Ty, 0));
         ArgArray.push_back(I.getPointerOperand());
         ArgArray.push_back(ConstantInt::get(Int32Ty, SourceType));
         ArgArray.push_back(ConstantInt::get(Int32Ty, ResultType));
@@ -514,9 +514,13 @@ void MemlogPass::visitGetElementPtrInst(GetElementPtrInst &I) {
         
         }
         
-        ArgArray[4] = ConstantInt::get(Int32Ty, count);
-        IRB.CreateCall(MemlogGEPHookFunc, ArgArray)->setMetadata(I.getModule()->getMDKindID("nosanitize"), SanitizeMDNode);
-
+        if (count != 0) {
+            // We only instrument when there is at least one non constant idx.
+            ArgArray[0] = ConstantInt::get(Int32Ty, HookID++);
+            ArgArray[4] = ConstantInt::get(Int32Ty, count);
+            IRB.CreateCall(MemlogGEPHookFunc, ArgArray)->setMetadata(I.getModule()->getMDKindID("nosanitize"), SanitizeMDNode);
+        
+        }
     }
 
 }
@@ -528,13 +532,17 @@ void MemlogPass::visitMemSetInst(MemSetInst &I) {
         if (ClDebug)
             errs() << I.getFunction()->getName() << " hook MemSetInst id: " << HookID << "\n";
 
+        Value *Arg;
         IRBuilder <> IRB(&I);
         std::vector<Value *> ArgArray;
         ArgArray.push_back(ConstantInt::get(Int32Ty, HookID++));
         for (User::op_iterator it = I.arg_begin(); it != I.arg_end(); it++) {
-            ArgArray.push_back(*it);
+            Arg = *it;
+            if (Arg->getType()->isPointerTy())
+              Arg = IRB.CreatePtrToInt(Arg, Int64PtrTy);
+            ArgArray.push_back(Arg);
         }
-        IRB.CreateCall(MemlogHook3Func, ArgArray);
+        IRB.CreateCall(MemlogHook3Func, ArgArray)->setMetadata(I.getModule()->getMDKindID("nosanitize"), SanitizeMDNode);
 
     }
 
@@ -547,13 +555,17 @@ void MemlogPass::visitMemCpyInst(MemCpyInst &I) {
         if (ClDebug)
             errs() << I.getFunction()->getName() << " hook MemCpyInst id: " << HookID << "\n";
 
+        Value *Arg;
         IRBuilder <> IRB(&I);
         std::vector<Value *> ArgArray;
         ArgArray.push_back(ConstantInt::get(Int32Ty, HookID++));
         for (User::op_iterator it = I.arg_begin(); it != I.arg_end(); it++) {
-            ArgArray.push_back(*it);
+            Arg = *it;
+            if (Arg->getType()->isPointerTy())
+              Arg = IRB.CreatePtrToInt(Arg, Int64PtrTy);
+            ArgArray.push_back(Arg);
         }
-        IRB.CreateCall(MemlogHook4Func, ArgArray);
+        IRB.CreateCall(MemlogHook4Func, ArgArray)->setMetadata(I.getModule()->getMDKindID("nosanitize"), SanitizeMDNode);;
     }
 
 }
@@ -565,13 +577,17 @@ void MemlogPass::visitMemCpyInlineInst(MemCpyInlineInst &I) {
         if (ClDebug)
             errs() << I.getFunction()->getName() << " hook MemCpyInlineInst id: " << HookID << "\n";
         
+        Value *Arg;
         IRBuilder <> IRB(&I);
         std::vector<Value *> ArgArray;
         ArgArray.push_back(ConstantInt::get(Int32Ty, HookID++));
         for (User::op_iterator it = I.arg_begin(); it != I.arg_end(); it++) {
-            ArgArray.push_back(*it);
+            Arg = *it;
+            if (Arg->getType()->isPointerTy())
+              Arg = IRB.CreatePtrToInt(Arg, Int64PtrTy);
+            ArgArray.push_back(Arg);
         }
-        IRB.CreateCall(MemlogHook4Func, ArgArray);
+        IRB.CreateCall(MemlogHook4Func, ArgArray)->setMetadata(I.getModule()->getMDKindID("nosanitize"), SanitizeMDNode);;
 
     }
 
@@ -583,14 +599,18 @@ void MemlogPass::visitMemMoveInst(MemMoveInst &I) {
         
         if (ClDebug)
             errs() << I.getFunction()->getName() << " hook MemMoveInst id: " << HookID << "\n";
-
+        
+        Value *Arg;
         IRBuilder <> IRB(&I);
         std::vector<Value *> ArgArray;
         ArgArray.push_back(ConstantInt::get(Int32Ty, HookID++));
         for (User::op_iterator it = I.arg_begin(); it != I.arg_end(); it++) {
-            ArgArray.push_back(*it);
+            Arg = *it;
+            if (Arg->getType()->isPointerTy())
+              Arg = IRB.CreatePtrToInt(Arg, Int64PtrTy);
+            ArgArray.push_back(Arg);
         }
-        IRB.CreateCall(MemlogHook4Func, ArgArray);
+        IRB.CreateCall(MemlogHook4Func, ArgArray)->setMetadata(I.getModule()->getMDKindID("nosanitize"), SanitizeMDNode);;
     }
 
 }
